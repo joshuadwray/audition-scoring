@@ -1,0 +1,1221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dance Scoring Interface Mockup</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 10px;
+            color: #333;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+        }
+        
+        .view-toggle {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 30px;
+        }
+        
+        .view-toggle button {
+            padding: 10px 24px;
+            border: 2px solid #4a90e2;
+            background: white;
+            color: #4a90e2;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        
+        .view-toggle button.active {
+            background: #4a90e2;
+            color: white;
+        }
+        
+        .mockup-wrapper {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        .orientation-label {
+            font-size: 14px;
+            font-weight: 600;
+            color: #666;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        /* Landscape Layout */
+        .landscape-view {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 12px;
+            padding: 20px;
+            background: #fafafa;
+            border-radius: 8px;
+        }
+        
+        /* Portrait Layout */
+        .portrait-view {
+            max-width: 420px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #fafafa;
+            border-radius: 8px;
+            max-height: 800px;
+            overflow-y: auto;
+        }
+        
+        .portrait-view .tiles {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        /* Two-column portrait layout */
+        .tiles-two-col {
+            display: grid !important;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+        }
+        
+        .portrait-two-col .dancer-tile {
+            padding: 12px;
+        }
+        
+        .portrait-two-col .dancer-number {
+            font-size: 20px;
+        }
+        
+        .portrait-two-col .completion-indicator {
+            font-size: 10px;
+        }
+        
+        .portrait-two-col .category-label {
+            font-size: 9px;
+        }
+        
+        .portrait-two-col .score-btn {
+            padding: 6px 2px;
+            font-size: 12px;
+        }
+        
+        .portrait-two-col .category {
+            margin-bottom: 8px;
+        }
+        
+        /* Dancer Tile */
+        .dancer-tile {
+            background: white;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 16px;
+            transition: all 0.2s;
+        }
+        
+        .dancer-tile.scored {
+            border-color: #4caf50;
+        }
+        
+        .dancer-tile.partial {
+            border-color: #ff9800;
+        }
+        
+        .dancer-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+        
+        .dancer-number {
+            font-size: 24px;
+            font-weight: 700;
+            color: #333;
+        }
+        
+        .completion-indicator {
+            font-size: 12px;
+            font-weight: 600;
+            color: #999;
+        }
+        
+        .dancer-tile.scored .completion-indicator {
+            color: #4caf50;
+        }
+        
+        .dancer-tile.partial .completion-indicator {
+            color: #ff9800;
+        }
+        
+        /* Scoring Categories */
+        .category {
+            margin-bottom: 10px;
+        }
+        
+        .category-label {
+            font-size: 11px;
+            font-weight: 600;
+            color: #666;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        
+        .score-buttons {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 4px;
+        }
+        
+        .score-btn {
+            padding: 8px 4px;
+            border: 2px solid #e0e0e0;
+            background: white;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            color: #666;
+            transition: all 0.15s;
+            text-align: center;
+        }
+        
+        .score-btn:hover {
+            border-color: #4a90e2;
+            background: #f0f7ff;
+        }
+        
+        .score-btn.selected {
+            background: #4a90e2;
+            border-color: #4a90e2;
+            color: white;
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        .notes {
+            margin-top: 30px;
+            padding: 20px;
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            border-radius: 4px;
+        }
+        
+        .notes h3 {
+            margin-bottom: 10px;
+            color: #856404;
+        }
+        
+        .notes ul {
+            margin-left: 20px;
+            color: #856404;
+        }
+        
+        .notes li {
+            margin-bottom: 6px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Dance Scoring Interface Mockup</h1>
+        <p class="subtitle">Tile-based approach for real-time scoring</p>
+        
+        <div class="view-toggle">
+            <button class="active" onclick="showView('landscape')">Landscape View</button>
+            <button onclick="showView('portrait')">Portrait (1 Column)</button>
+            <button onclick="showView('portrait-two-col')">Portrait (2 Columns)</button>
+        </div>
+        
+        <!-- Landscape View -->
+        <div id="landscape" class="mockup-wrapper">
+            <div class="orientation-label">Landscape (Laptop/Tablet Horizontal)</div>
+            <div class="landscape-view">
+                <!-- Dancer 1 -->
+                <div class="dancer-tile scored">
+                    <div class="dancer-header">
+                        <div class="dancer-number">#12</div>
+                        <div class="completion-indicator">5/5 ✓</div>
+                    </div>
+                    <div class="category">
+                        <div class="category-label">Technique</div>
+                        <div class="score-buttons">
+                            <div class="score-btn">1</div>
+                            <div class="score-btn">2</div>
+                            <div class="score-btn">3</div>
+                            <div class="score-btn selected">4</div>
+                            <div class="score-btn">5</div>
+                        </div>
+                    </div>
+                    <div class="category">
+                        <div class="category-label">Musicality</div>
+                        <div class="score-buttons">
+                            <div class="score-btn">1</div>
+                            <div class="score-btn">2</div>
+                            <div class="score-btn">3</div>
+                            <div class="score-btn">4</div>
+                            <div class="score-btn selected">5</div>
+                        </div>
+                    </div>
+                    <div class="category">
+                        <div class="category-label">Expression</div>
+                        <div class="score-buttons">
+                            <div class="score-btn">1</div>
+                            <div class="score-btn">2</div>
+                            <div class="score-btn">3</div>
+                            <div class="score-btn selected">4</div>
+                            <div class="score-btn">5</div>
+                        </div>
+                    </div>
+                    <div class="category">
+                        <div class="category-label">Timing</div>
+                        <div class="score-buttons">
+                            <div class="score-btn">1</div>
+                            <div class="score-btn">2</div>
+                            <div class="score-btn">3</div>
+                            <div class="score-btn">4</div>
+                            <div class="score-btn selected">5</div>
+                        </div>
+                    </div>
+                    <div class="category">
+                        <div class="category-label">Presentation</div>
+                        <div class="score-buttons">
+                            <div class="score-btn">1</div>
+                            <div class="score-btn">2</div>
+                            <div class="score-btn">3</div>
+                            <div class="score-btn selected">4</div>
+                            <div class="score-btn">5</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Dancer 2 -->
+                <div class="dancer-tile partial">
+                    <div class="dancer-header">
+                        <div class="dancer-number">#15</div>
+                        <div class="completion-indicator">3/5</div>
+                    </div>
+                    <div class="category">
+                        <div class="category-label">Technique</div>
+                        <div class="score-buttons">
+                            <div class="score-btn">1</div>
+                            <div class="score-btn">2</div>
+                            <div class="score-btn selected">3</div>
+                            <div class="score-btn">4</div>
+                            <div class="score-btn">5</div>
+                        </div>
+                    </div>
+                    <div class="category">
+                        <div class="category-label">Musicality</div>
+                        <div class="score-buttons">
+                            <div class="score-btn">1</div>
+                            <div class="score-btn">2</div>
+                            <div class="score-btn">3</div>
+                            <div class="score-btn selected">4</div>
+                            <div class="score-btn">5</div>
+                        </div>
+                    </div>
+                    <div class="category">
+                        <div class="category-label">Expression</div>
+                        <div class="score-buttons">
+                            <div class="score-btn">1</div>
+                            <div class="score-btn">2</div>
+                            <div class="score-btn">3</div>
+                            <div class="score-btn selected">4</div>
+                            <div class="score-btn">5</div>
+                        </div>
+                    </div>
+                    <div class="category">
+                        <div class="category-label">Timing</div>
+                        <div class="score-buttons">
+                            <div class="score-btn">1</div>
+                            <div class="score-btn">2</div>
+                            <div class="score-btn">3</div>
+                            <div class="score-btn">4</div>
+                            <div class="score-btn">5</div>
+                        </div>
+                    </div>
+                    <div class="category">
+                        <div class="category-label">Presentation</div>
+                        <div class="score-buttons">
+                            <div class="score-btn">1</div>
+                            <div class="score-btn">2</div>
+                            <div class="score-btn">3</div>
+                            <div class="score-btn">4</div>
+                            <div class="score-btn">5</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Dancer 3 -->
+                <div class="dancer-tile">
+                    <div class="dancer-header">
+                        <div class="dancer-number">#18</div>
+                        <div class="completion-indicator">0/5</div>
+                    </div>
+                    <div class="category">
+                        <div class="category-label">Technique</div>
+                        <div class="score-buttons">
+                            <div class="score-btn">1</div>
+                            <div class="score-btn">2</div>
+                            <div class="score-btn">3</div>
+                            <div class="score-btn">4</div>
+                            <div class="score-btn">5</div>
+                        </div>
+                    </div>
+                    <div class="category">
+                        <div class="category-label">Musicality</div>
+                        <div class="score-buttons">
+                            <div class="score-btn">1</div>
+                            <div class="score-btn">2</div>
+                            <div class="score-btn">3</div>
+                            <div class="score-btn">4</div>
+                            <div class="score-btn">5</div>
+                        </div>
+                    </div>
+                    <div class="category">
+                        <div class="category-label">Expression</div>
+                        <div class="score-buttons">
+                            <div class="score-btn">1</div>
+                            <div class="score-btn">2</div>
+                            <div class="score-btn">3</div>
+                            <div class="score-btn">4</div>
+                            <div class="score-btn">5</div>
+                        </div>
+                    </div>
+                    <div class="category">
+                        <div class="category-label">Timing</div>
+                        <div class="score-buttons">
+                            <div class="score-btn">1</div>
+                            <div class="score-btn">2</div>
+                            <div class="score-btn">3</div>
+                            <div class="score-btn">4</div>
+                            <div class="score-btn">5</div>
+                        </div>
+                    </div>
+                    <div class="category">
+                        <div class="category-label">Presentation</div>
+                        <div class="score-buttons">
+                            <div class="score-btn">1</div>
+                            <div class="score-btn">2</div>
+                            <div class="score-btn">3</div>
+                            <div class="score-btn">4</div>
+                            <div class="score-btn">5</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Dancer 4 -->
+                <div class="dancer-tile">
+                    <div class="dancer-header">
+                        <div class="dancer-number">#21</div>
+                        <div class="completion-indicator">0/5</div>
+                    </div>
+                    <div class="category">
+                        <div class="category-label">Technique</div>
+                        <div class="score-buttons">
+                            <div class="score-btn">1</div>
+                            <div class="score-btn">2</div>
+                            <div class="score-btn">3</div>
+                            <div class="score-btn">4</div>
+                            <div class="score-btn">5</div>
+                        </div>
+                    </div>
+                    <div class="category">
+                        <div class="category-label">Musicality</div>
+                        <div class="score-buttons">
+                            <div class="score-btn">1</div>
+                            <div class="score-btn">2</div>
+                            <div class="score-btn">3</div>
+                            <div class="score-btn">4</div>
+                            <div class="score-btn">5</div>
+                        </div>
+                    </div>
+                    <div class="category">
+                        <div class="category-label">Expression</div>
+                        <div class="score-buttons">
+                            <div class="score-btn">1</div>
+                            <div class="score-btn">2</div>
+                            <div class="score-btn">3</div>
+                            <div class="score-btn">4</div>
+                            <div class="score-btn">5</div>
+                        </div>
+                    </div>
+                    <div class="category">
+                        <div class="category-label">Timing</div>
+                        <div class="score-buttons">
+                            <div class="score-btn">1</div>
+                            <div class="score-btn">2</div>
+                            <div class="score-btn">3</div>
+                            <div class="score-btn">4</div>
+                            <div class="score-btn">5</div>
+                        </div>
+                    </div>
+                    <div class="category">
+                        <div class="category-label">Presentation</div>
+                        <div class="score-buttons">
+                            <div class="score-btn">1</div>
+                            <div class="score-btn">2</div>
+                            <div class="score-btn">3</div>
+                            <div class="score-btn">4</div>
+                            <div class="score-btn">5</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Dancer 5 -->
+                <div class="dancer-tile">
+                    <div class="dancer-header">
+                        <div class="dancer-number">#24</div>
+                        <div class="completion-indicator">0/5</div>
+                    </div>
+                    <div class="category">
+                        <div class="category-label">Technique</div>
+                        <div class="score-buttons">
+                            <div class="score-btn">1</div>
+                            <div class="score-btn">2</div>
+                            <div class="score-btn">3</div>
+                            <div class="score-btn">4</div>
+                            <div class="score-btn">5</div>
+                        </div>
+                    </div>
+                    <div class="category">
+                        <div class="category-label">Musicality</div>
+                        <div class="score-buttons">
+                            <div class="score-btn">1</div>
+                            <div class="score-btn">2</div>
+                            <div class="score-btn">3</div>
+                            <div class="score-btn">4</div>
+                            <div class="score-btn">5</div>
+                        </div>
+                    </div>
+                    <div class="category">
+                        <div class="category-label">Expression</div>
+                        <div class="score-buttons">
+                            <div class="score-btn">1</div>
+                            <div class="score-btn">2</div>
+                            <div class="score-btn">3</div>
+                            <div class="score-btn">4</div>
+                            <div class="score-btn">5</div>
+                        </div>
+                    </div>
+                    <div class="category">
+                        <div class="category-label">Timing</div>
+                        <div class="score-buttons">
+                            <div class="score-btn">1</div>
+                            <div class="score-btn">2</div>
+                            <div class="score-btn">3</div>
+                            <div class="score-btn">4</div>
+                            <div class="score-btn">5</div>
+                        </div>
+                    </div>
+                    <div class="category">
+                        <div class="category-label">Presentation</div>
+                        <div class="score-buttons">
+                            <div class="score-btn">1</div>
+                            <div class="score-btn">2</div>
+                            <div class="score-btn">3</div>
+                            <div class="score-btn">4</div>
+                            <div class="score-btn">5</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Portrait View -->
+        <div id="portrait" class="mockup-wrapper hidden">
+            <div class="orientation-label">Portrait (Tablet/Phone Vertical)</div>
+            <div class="portrait-view">
+                <div class="tiles">
+                    <!-- Dancer 1 -->
+                    <div class="dancer-tile scored">
+                        <div class="dancer-header">
+                            <div class="dancer-number">#12</div>
+                            <div class="completion-indicator">5/5 ✓</div>
+                        </div>
+                        <div class="category">
+                            <div class="category-label">Technique</div>
+                            <div class="score-buttons">
+                                <div class="score-btn">1</div>
+                                <div class="score-btn">2</div>
+                                <div class="score-btn">3</div>
+                                <div class="score-btn selected">4</div>
+                                <div class="score-btn">5</div>
+                            </div>
+                        </div>
+                        <div class="category">
+                            <div class="category-label">Musicality</div>
+                            <div class="score-buttons">
+                                <div class="score-btn">1</div>
+                                <div class="score-btn">2</div>
+                                <div class="score-btn">3</div>
+                                <div class="score-btn">4</div>
+                                <div class="score-btn selected">5</div>
+                            </div>
+                        </div>
+                        <div class="category">
+                            <div class="category-label">Expression</div>
+                            <div class="score-buttons">
+                                <div class="score-btn">1</div>
+                                <div class="score-btn">2</div>
+                                <div class="score-btn">3</div>
+                                <div class="score-btn selected">4</div>
+                                <div class="score-btn">5</div>
+                            </div>
+                        </div>
+                        <div class="category">
+                            <div class="category-label">Timing</div>
+                            <div class="score-buttons">
+                                <div class="score-btn">1</div>
+                                <div class="score-btn">2</div>
+                                <div class="score-btn">3</div>
+                                <div class="score-btn">4</div>
+                                <div class="score-btn selected">5</div>
+                            </div>
+                        </div>
+                        <div class="category">
+                            <div class="category-label">Presentation</div>
+                            <div class="score-buttons">
+                                <div class="score-btn">1</div>
+                                <div class="score-btn">2</div>
+                                <div class="score-btn">3</div>
+                                <div class="score-btn selected">4</div>
+                                <div class="score-btn">5</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Dancer 2 -->
+                    <div class="dancer-tile partial">
+                        <div class="dancer-header">
+                            <div class="dancer-number">#15</div>
+                            <div class="completion-indicator">3/5</div>
+                        </div>
+                        <div class="category">
+                            <div class="category-label">Technique</div>
+                            <div class="score-buttons">
+                                <div class="score-btn">1</div>
+                                <div class="score-btn">2</div>
+                                <div class="score-btn selected">3</div>
+                                <div class="score-btn">4</div>
+                                <div class="score-btn">5</div>
+                            </div>
+                        </div>
+                        <div class="category">
+                            <div class="category-label">Musicality</div>
+                            <div class="score-buttons">
+                                <div class="score-btn">1</div>
+                                <div class="score-btn">2</div>
+                                <div class="score-btn">3</div>
+                                <div class="score-btn selected">4</div>
+                                <div class="score-btn">5</div>
+                            </div>
+                        </div>
+                        <div class="category">
+                            <div class="category-label">Expression</div>
+                            <div class="score-buttons">
+                                <div class="score-btn">1</div>
+                                <div class="score-btn">2</div>
+                                <div class="score-btn">3</div>
+                                <div class="score-btn selected">4</div>
+                                <div class="score-btn">5</div>
+                            </div>
+                        </div>
+                        <div class="category">
+                            <div class="category-label">Timing</div>
+                            <div class="score-buttons">
+                                <div class="score-btn">1</div>
+                                <div class="score-btn">2</div>
+                                <div class="score-btn">3</div>
+                                <div class="score-btn">4</div>
+                                <div class="score-btn">5</div>
+                            </div>
+                        </div>
+                        <div class="category">
+                            <div class="category-label">Presentation</div>
+                            <div class="score-buttons">
+                                <div class="score-btn">1</div>
+                                <div class="score-btn">2</div>
+                                <div class="score-btn">3</div>
+                                <div class="score-btn">4</div>
+                                <div class="score-btn">5</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Dancer 3 -->
+                    <div class="dancer-tile">
+                        <div class="dancer-header">
+                            <div class="dancer-number">#18</div>
+                            <div class="completion-indicator">0/5</div>
+                        </div>
+                        <div class="category">
+                            <div class="category-label">Technique</div>
+                            <div class="score-buttons">
+                                <div class="score-btn">1</div>
+                                <div class="score-btn">2</div>
+                                <div class="score-btn">3</div>
+                                <div class="score-btn">4</div>
+                                <div class="score-btn">5</div>
+                            </div>
+                        </div>
+                        <div class="category">
+                            <div class="category-label">Musicality</div>
+                            <div class="score-buttons">
+                                <div class="score-btn">1</div>
+                                <div class="score-btn">2</div>
+                                <div class="score-btn">3</div>
+                                <div class="score-btn">4</div>
+                                <div class="score-btn">5</div>
+                            </div>
+                        </div>
+                        <div class="category">
+                            <div class="category-label">Expression</div>
+                            <div class="score-buttons">
+                                <div class="score-btn">1</div>
+                                <div class="score-btn">2</div>
+                                <div class="score-btn">3</div>
+                                <div class="score-btn">4</div>
+                                <div class="score-btn">5</div>
+                            </div>
+                        </div>
+                        <div class="category">
+                            <div class="category-label">Timing</div>
+                            <div class="score-buttons">
+                                <div class="score-btn">1</div>
+                                <div class="score-btn">2</div>
+                                <div class="score-btn">3</div>
+                                <div class="score-btn">4</div>
+                                <div class="score-btn">5</div>
+                            </div>
+                        </div>
+                        <div class="category">
+                            <div class="category-label">Presentation</div>
+                            <div class="score-buttons">
+                                <div class="score-btn">1</div>
+                                <div class="score-btn">2</div>
+                                <div class="score-btn">3</div>
+                                <div class="score-btn">4</div>
+                                <div class="score-btn">5</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Dancer 4 -->
+                    <div class="dancer-tile">
+                        <div class="dancer-header">
+                            <div class="dancer-number">#21</div>
+                            <div class="completion-indicator">0/5</div>
+                        </div>
+                        <div class="category">
+                            <div class="category-label">Technique</div>
+                            <div class="score-buttons">
+                                <div class="score-btn">1</div>
+                                <div class="score-btn">2</div>
+                                <div class="score-btn">3</div>
+                                <div class="score-btn">4</div>
+                                <div class="score-btn">5</div>
+                            </div>
+                        </div>
+                        <div class="category">
+                            <div class="category-label">Musicality</div>
+                            <div class="score-buttons">
+                                <div class="score-btn">1</div>
+                                <div class="score-btn">2</div>
+                                <div class="score-btn">3</div>
+                                <div class="score-btn">4</div>
+                                <div class="score-btn">5</div>
+                            </div>
+                        </div>
+                        <div class="category">
+                            <div class="category-label">Expression</div>
+                            <div class="score-buttons">
+                                <div class="score-btn">1</div>
+                                <div class="score-btn">2</div>
+                                <div class="score-btn">3</div>
+                                <div class="score-btn">4</div>
+                                <div class="score-btn">5</div>
+                            </div>
+                        </div>
+                        <div class="category">
+                            <div class="category-label">Timing</div>
+                            <div class="score-buttons">
+                                <div class="score-btn">1</div>
+                                <div class="score-btn">2</div>
+                                <div class="score-btn">3</div>
+                                <div class="score-btn">4</div>
+                                <div class="score-btn">5</div>
+                            </div>
+                        </div>
+                        <div class="category">
+                            <div class="category-label">Presentation</div>
+                            <div class="score-buttons">
+                                <div class="score-btn">1</div>
+                                <div class="score-btn">2</div>
+                                <div class="score-btn">3</div>
+                                <div class="score-btn">4</div>
+                                <div class="score-btn">5</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Dancer 5 -->
+                    <div class="dancer-tile">
+                        <div class="dancer-header">
+                            <div class="dancer-number">#24</div>
+                            <div class="completion-indicator">0/5</div>
+                        </div>
+                        <div class="category">
+                            <div class="category-label">Technique</div>
+                            <div class="score-buttons">
+                                <div class="score-btn">1</div>
+                                <div class="score-btn">2</div>
+                                <div class="score-btn">3</div>
+                                <div class="score-btn">4</div>
+                                <div class="score-btn">5</div>
+                            </div>
+                        </div>
+                        <div class="category">
+                            <div class="category-label">Musicality</div>
+                            <div class="score-buttons">
+                                <div class="score-btn">1</div>
+                                <div class="score-btn">2</div>
+                                <div class="score-btn">3</div>
+                                <div class="score-btn">4</div>
+                                <div class="score-btn">5</div>
+                            </div>
+                        </div>
+                        <div class="category">
+                            <div class="category-label">Expression</div>
+                            <div class="score-buttons">
+                                <div class="score-btn">1</div>
+                                <div class="score-btn">2</div>
+                                <div class="score-btn">3</div>
+                                <div class="score-btn">4</div>
+                                <div class="score-btn">5</div>
+                            </div>
+                        </div>
+                        <div class="category">
+                            <div class="category-label">Timing</div>
+                            <div class="score-buttons">
+                                <div class="score-btn">1</div>
+                                <div class="score-btn">2</div>
+                                <div class="score-btn">3</div>
+                                <div class="score-btn">4</div>
+                                <div class="score-btn">5</div>
+                            </div>
+                        </div>
+                        <div class="category">
+                            <div class="category-label">Presentation</div>
+                            <div class="score-buttons">
+                                <div class="score-btn">1</div>
+                                <div class="score-btn">2</div>
+                                <div class="score-btn">3</div>
+                                <div class="score-btn">4</div>
+                                <div class="score-btn">5</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Portrait Two-Column View -->
+        <div id="portrait-two-col" class="mockup-wrapper hidden">
+            <div class="orientation-label">Portrait - 2 Columns (Tablet Vertical)</div>
+            <div class="portrait-view portrait-two-col">
+                <div class="tiles tiles-two-col">
+                    <!-- Dancer 1 -->
+                    <div class="dancer-tile scored">
+                        <div class="dancer-header">
+                            <div class="dancer-number">#12</div>
+                            <div class="completion-indicator">5/5</div>
+                        </div>
+                        <div class="category">
+                            <div class="category-label">Tech</div>
+                            <div class="score-buttons">
+                                <div class="score-btn">1</div>
+                                <div class="score-btn">2</div>
+                                <div class="score-btn">3</div>
+                                <div class="score-btn selected">4</div>
+                                <div class="score-btn">5</div>
+                            </div>
+                        </div>
+                        <div class="category">
+                            <div class="category-label">Music</div>
+                            <div class="score-buttons">
+                                <div class="score-btn">1</div>
+                                <div class="score-btn">2</div>
+                                <div class="score-btn">3</div>
+                                <div class="score-btn">4</div>
+                                <div class="score-btn selected">5</div>
+                            </div>
+                        </div>
+                        <div class="category">
+                            <div class="category-label">Expr</div>
+                            <div class="score-buttons">
+                                <div class="score-btn">1</div>
+                                <div class="score-btn">2</div>
+                                <div class="score-btn">3</div>
+                                <div class="score-btn selected">4</div>
+                                <div class="score-btn">5</div>
+                            </div>
+                        </div>
+                        <div class="category">
+                            <div class="category-label">Time</div>
+                            <div class="score-buttons">
+                                <div class="score-btn">1</div>
+                                <div class="score-btn">2</div>
+                                <div class="score-btn">3</div>
+                                <div class="score-btn">4</div>
+                                <div class="score-btn selected">5</div>
+                            </div>
+                        </div>
+                        <div class="category">
+                            <div class="category-label">Pres</div>
+                            <div class="score-buttons">
+                                <div class="score-btn">1</div>
+                                <div class="score-btn">2</div>
+                                <div class="score-btn">3</div>
+                                <div class="score-btn selected">4</div>
+                                <div class="score-btn">5</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Dancer 2 -->
+                    <div class="dancer-tile partial">
+                        <div class="dancer-header">
+                            <div class="dancer-number">#15</div>
+                            <div class="completion-indicator">3/5</div>
+                        </div>
+                        <div class="category">
+                            <div class="category-label">Tech</div>
+                            <div class="score-buttons">
+                                <div class="score-btn">1</div>
+                                <div class="score-btn">2</div>
+                                <div class="score-btn selected">3</div>
+                                <div class="score-btn">4</div>
+                                <div class="score-btn">5</div>
+                            </div>
+                        </div>
+                        <div class="category">
+                            <div class="category-label">Music</div>
+                            <div class="score-buttons">
+                                <div class="score-btn">1</div>
+                                <div class="score-btn">2</div>
+                                <div class="score-btn">3</div>
+                                <div class="score-btn selected">4</div>
+                                <div class="score-btn">5</div>
+                            </div>
+                        </div>
+                        <div class="category">
+                            <div class="category-label">Expr</div>
+                            <div class="score-buttons">
+                                <div class="score-btn">1</div>
+                                <div class="score-btn">2</div>
+                                <div class="score-btn">3</div>
+                                <div class="score-btn selected">4</div>
+                                <div class="score-btn">5</div>
+                            </div>
+                        </div>
+                        <div class="category">
+                            <div class="category-label">Time</div>
+                            <div class="score-buttons">
+                                <div class="score-btn">1</div>
+                                <div class="score-btn">2</div>
+                                <div class="score-btn">3</div>
+                                <div class="score-btn">4</div>
+                                <div class="score-btn">5</div>
+                            </div>
+                        </div>
+                        <div class="category">
+                            <div class="category-label">Pres</div>
+                            <div class="score-buttons">
+                                <div class="score-btn">1</div>
+                                <div class="score-btn">2</div>
+                                <div class="score-btn">3</div>
+                                <div class="score-btn">4</div>
+                                <div class="score-btn">5</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Dancer 3 -->
+                    <div class="dancer-tile">
+                        <div class="dancer-header">
+                            <div class="dancer-number">#18</div>
+                            <div class="completion-indicator">0/5</div>
+                        </div>
+                        <div class="category">
+                            <div class="category-label">Tech</div>
+                            <div class="score-buttons">
+                                <div class="score-btn">1</div>
+                                <div class="score-btn">2</div>
+                                <div class="score-btn">3</div>
+                                <div class="score-btn">4</div>
+                                <div class="score-btn">5</div>
+                            </div>
+                        </div>
+                        <div class="category">
+                            <div class="category-label">Music</div>
+                            <div class="score-buttons">
+                                <div class="score-btn">1</div>
+                                <div class="score-btn">2</div>
+                                <div class="score-btn">3</div>
+                                <div class="score-btn">4</div>
+                                <div class="score-btn">5</div>
+                            </div>
+                        </div>
+                        <div class="category">
+                            <div class="category-label">Expr</div>
+                            <div class="score-buttons">
+                                <div class="score-btn">1</div>
+                                <div class="score-btn">2</div>
+                                <div class="score-btn">3</div>
+                                <div class="score-btn">4</div>
+                                <div class="score-btn">5</div>
+                            </div>
+                        </div>
+                        <div class="category">
+                            <div class="category-label">Time</div>
+                            <div class="score-buttons">
+                                <div class="score-btn">1</div>
+                                <div class="score-btn">2</div>
+                                <div class="score-btn">3</div>
+                                <div class="score-btn">4</div>
+                                <div class="score-btn">5</div>
+                            </div>
+                        </div>
+                        <div class="category">
+                            <div class="category-label">Pres</div>
+                            <div class="score-buttons">
+                                <div class="score-btn">1</div>
+                                <div class="score-btn">2</div>
+                                <div class="score-btn">3</div>
+                                <div class="score-btn">4</div>
+                                <div class="score-btn">5</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Dancer 4 -->
+                    <div class="dancer-tile">
+                        <div class="dancer-header">
+                            <div class="dancer-number">#21</div>
+                            <div class="completion-indicator">0/5</div>
+                        </div>
+                        <div class="category">
+                            <div class="category-label">Tech</div>
+                            <div class="score-buttons">
+                                <div class="score-btn">1</div>
+                                <div class="score-btn">2</div>
+                                <div class="score-btn">3</div>
+                                <div class="score-btn">4</div>
+                                <div class="score-btn">5</div>
+                            </div>
+                        </div>
+                        <div class="category">
+                            <div class="category-label">Music</div>
+                            <div class="score-buttons">
+                                <div class="score-btn">1</div>
+                                <div class="score-btn">2</div>
+                                <div class="score-btn">3</div>
+                                <div class="score-btn">4</div>
+                                <div class="score-btn">5</div>
+                            </div>
+                        </div>
+                        <div class="category">
+                            <div class="category-label">Expr</div>
+                            <div class="score-buttons">
+                                <div class="score-btn">1</div>
+                                <div class="score-btn">2</div>
+                                <div class="score-btn">3</div>
+                                <div class="score-btn">4</div>
+                                <div class="score-btn">5</div>
+                            </div>
+                        </div>
+                        <div class="category">
+                            <div class="category-label">Time</div>
+                            <div class="score-buttons">
+                                <div class="score-btn">1</div>
+                                <div class="score-btn">2</div>
+                                <div class="score-btn">3</div>
+                                <div class="score-btn">4</div>
+                                <div class="score-btn">5</div>
+                            </div>
+                        </div>
+                        <div class="category">
+                            <div class="category-label">Pres</div>
+                            <div class="score-buttons">
+                                <div class="score-btn">1</div>
+                                <div class="score-btn">2</div>
+                                <div class="score-btn">3</div>
+                                <div class="score-btn">4</div>
+                                <div class="score-btn">5</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Dancer 5 -->
+                    <div class="dancer-tile">
+                        <div class="dancer-header">
+                            <div class="dancer-number">#24</div>
+                            <div class="completion-indicator">0/5</div>
+                        </div>
+                        <div class="category">
+                            <div class="category-label">Tech</div>
+                            <div class="score-buttons">
+                                <div class="score-btn">1</div>
+                                <div class="score-btn">2</div>
+                                <div class="score-btn">3</div>
+                                <div class="score-btn">4</div>
+                                <div class="score-btn">5</div>
+                            </div>
+                        </div>
+                        <div class="category">
+                            <div class="category-label">Music</div>
+                            <div class="score-buttons">
+                                <div class="score-btn">1</div>
+                                <div class="score-btn">2</div>
+                                <div class="score-btn">3</div>
+                                <div class="score-btn">4</div>
+                                <div class="score-btn">5</div>
+                            </div>
+                        </div>
+                        <div class="category">
+                            <div class="category-label">Expr</div>
+                            <div class="score-buttons">
+                                <div class="score-btn">1</div>
+                                <div class="score-btn">2</div>
+                                <div class="score-btn">3</div>
+                                <div class="score-btn">4</div>
+                                <div class="score-btn">5</div>
+                            </div>
+                        </div>
+                        <div class="category">
+                            <div class="category-label">Time</div>
+                            <div class="score-buttons">
+                                <div class="score-btn">1</div>
+                                <div class="score-btn">2</div>
+                                <div class="score-btn">3</div>
+                                <div class="score-btn">4</div>
+                                <div class="score-btn">5</div>
+                            </div>
+                        </div>
+                        <div class="category">
+                            <div class="category-label">Pres</div>
+                            <div class="score-buttons">
+                                <div class="score-btn">1</div>
+                                <div class="score-btn">2</div>
+                                <div class="score-btn">3</div>
+                                <div class="score-btn">4</div>
+                                <div class="score-btn">5</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="notes">
+            <h3>Design Notes</h3>
+            <ul>
+                <li><strong>Landscape:</strong> All 5 dancers visible at once in columns. Judge can scan across everyone simultaneously.</li>
+                <li><strong>Portrait (1 Column):</strong> Scrollable vertical list showing 2-3 tiles at a time. Maintains same interaction pattern (tap to score).</li>
+                <li><strong>Portrait (2 Columns):</strong> Side-by-side tiles with abbreviated labels ("Tech" instead of "Technique"). Fits 4 tiles on screen, less scrolling needed. More compressed but sees more dancers at once.</li>
+                <li><strong>Color coding:</strong> Green border = fully scored (5/5), Orange = partial (3/5), Gray = not started (0/5)</li>
+                <li><strong>Button size:</strong> Score buttons are sized for comfortable touch targets (~44px minimum tap area in 1-column, ~36px in 2-column)</li>
+                <li><strong>Completion indicator:</strong> Shows progress at a glance (e.g., "3/5" means 3 of 5 categories scored)</li>
+                <li><strong>Consistent layout:</strong> Each dancer tile uses identical structure regardless of orientation</li>
+            </ul>
+        </div>
+    </div>
+    
+    <script>
+        function showView(view) {
+            // Hide all views
+            document.getElementById('landscape').classList.add('hidden');
+            document.getElementById('portrait').classList.add('hidden');
+            document.getElementById('portrait-two-col').classList.add('hidden');
+            
+            // Remove active class from all buttons
+            document.querySelectorAll('.view-toggle button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // Show selected view
+            document.getElementById(view).classList.remove('hidden');
+            
+            // Add active class to clicked button
+            event.target.classList.add('active');
+        }
+        
+        // Add click handlers to score buttons for demo
+        document.querySelectorAll('.score-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                // Remove selected from siblings
+                this.parentElement.querySelectorAll('.score-btn').forEach(sibling => {
+                    sibling.classList.remove('selected');
+                });
+                // Add selected to this button
+                this.classList.add('selected');
+                
+                // Update completion indicator
+                const tile = this.closest('.dancer-tile');
+                const scoredCategories = tile.querySelectorAll('.category').length - 
+                    Array.from(tile.querySelectorAll('.category')).filter(cat => 
+                        !cat.querySelector('.score-btn.selected')
+                    ).length;
+                
+                const indicator = tile.querySelector('.completion-indicator');
+                indicator.textContent = `${scoredCategories}/5${scoredCategories === 5 ? ' ✓' : ''}`;
+                
+                // Update tile border color
+                tile.classList.remove('scored', 'partial');
+                if (scoredCategories === 5) {
+                    tile.classList.add('scored');
+                } else if (scoredCategories > 0) {
+                    tile.classList.add('partial');
+                }
+            });
+        });
+    </script>
+</body>
+</html>
