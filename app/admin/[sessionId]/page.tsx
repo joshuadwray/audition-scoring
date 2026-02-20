@@ -435,7 +435,9 @@ export default function AdminDashboard() {
     if (draft) {
       try {
         setJudgeLocalScores(JSON.parse(draft));
-      } catch { /* ignore corrupted draft */ }
+      } catch { setJudgeLocalScores({}); }
+    } else {
+      setJudgeLocalScores({});
     }
   }, [judgeActiveGroup?.id, adminJudgeId, judgeIsSubmitted]);
 

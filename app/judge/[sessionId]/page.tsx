@@ -114,7 +114,9 @@ export default function JudgeScoringPage() {
     if (draft) {
       try {
         setLocalScores(JSON.parse(draft));
-      } catch { /* ignore corrupted draft */ }
+      } catch { setLocalScores({}); }
+    } else {
+      setLocalScores({});
     }
   }, [activeGroup?.id, judgeId, isSubmitted]);
 
