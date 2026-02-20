@@ -4,8 +4,14 @@ let _supabase: SupabaseClient | null = null;
 
 function getSupabase(): SupabaseClient {
   if (!_supabase) {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    // Try build-time inlined env vars first, then fall back to runtime config
+    // injected by the server-rendered layout script tag.
+    const runtimeConfig = typeof window !== 'undefined'
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ? (window as any).__SUPABASE_CONFIG__ as { url?: string; anonKey?: string } | undefined
+      : undefined;
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || runtimeConfig?.url;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || runtimeConfig?.anonKey;
     if (!supabaseUrl || !supabaseAnonKey) {
       throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY environment variables');
     }

@@ -14,8 +14,22 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Inject Supabase config at runtime so client-side code works even if
+  // NEXT_PUBLIC_* env vars weren't inlined during the build step.
+  const supabaseConfig = JSON.stringify({
+    url: process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+    anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
+  });
+
   return (
     <html lang="en">
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `window.__SUPABASE_CONFIG__=${supabaseConfig};`,
+          }}
+        />
+      </head>
       <body className={inter.className}>{children}</body>
     </html>
   );
