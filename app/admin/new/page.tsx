@@ -1,10 +1,17 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import PINInput from '@/components/shared/PINInput';
+
+const SESSION_STORAGE_KEY = 'admin_create_verified';
 
 export default function NewSessionPage() {
   const router = useRouter();
+  const [pinVerified, setPinVerified] = useState(false);
+  const [createPin, setCreatePin] = useState('');
+  const [pinError, setPinError] = useState('');
+  const [pinLoading, setPinLoading] = useState(false);
   const [name, setName] = useState('');
   const [sessionCode, setSessionCode] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -12,6 +19,41 @@ export default function NewSessionPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [createdSession, setCreatedSession] = useState<{ id: string; session_code: string; admin_pin: string } | null>(null);
+
+  useEffect(() => {
+    if (sessionStorage.getItem(SESSION_STORAGE_KEY) === '1') {
+      setPinVerified(true);
+    }
+  }, []);
+
+  const handleVerifyPin = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setPinError('');
+    setPinLoading(true);
+
+    try {
+      const res = await fetch('/api/auth/admin-create-pin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin: createPin }),
+      });
+
+      const data = await res.json();
+
+      if (!data.success) {
+        setPinError(data.error || 'Invalid PIN');
+        setPinLoading(false);
+        return;
+      }
+
+      sessionStorage.setItem(SESSION_STORAGE_KEY, '1');
+      setPinVerified(true);
+    } catch {
+      setPinError('Connection error. Please try again.');
+    } finally {
+      setPinLoading(false);
+    }
+  };
 
   const isValidCode = /^[a-zA-Z0-9-]{3,20}$/.test(sessionCode);
 
@@ -42,6 +84,49 @@ export default function NewSessionPage() {
       setLoading(false);
     }
   };
+
+  if (!pinVerified) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="w-full max-w-md bg-white rounded-xl shadow-lg p-8">
+          <h1 className="text-2xl font-bold text-center text-gray-900 mb-2">Admin Access</h1>
+          <p className="text-center text-gray-500 mb-8">Enter your admin PIN to create a new session</p>
+
+          <form onSubmit={handleVerifyPin}>
+            <div className="mb-6">
+              <PINInput
+                length={6}
+                value={createPin}
+                onChange={setCreatePin}
+                label="Admin Create PIN"
+              />
+            </div>
+
+            {pinError && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                {pinError}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={pinLoading || createPin.length !== 6}
+              className="w-full py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+            >
+              {pinLoading ? 'Verifying...' : 'Continue'}
+            </button>
+          </form>
+
+          <button
+            onClick={() => router.push('/')}
+            className="w-full mt-3 py-2.5 text-gray-500 hover:text-gray-700 text-sm"
+          >
+            Back to Login
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (createdSession) {
     return (
