@@ -30,7 +30,7 @@ interface DancerEntry {
 
 export default function MyScoresView({ sessionId, judgeId, token, isLocked, canChangePin, autoExpandPin, onPinChanged }: MyScoresViewProps) {
   const [loading, setLoading] = useState(true);
-  const [showPinChange, setShowPinChange] = useState(autoExpandPin || false);
+  const [showPinChange, setShowPinChange] = useState(false);
   const [newPin, setNewPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [pinSaving, setPinSaving] = useState(false);
@@ -44,6 +44,10 @@ export default function MyScoresView({ sessionId, judgeId, token, isLocked, canC
   const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [isWide, setIsWide] = useState(false);
   const [materials, setMaterials] = useState<Material[]>([]);
+
+  useEffect(() => {
+    if (autoExpandPin) setShowPinChange(true);
+  }, [autoExpandPin]);
 
   // Load materials for color assignment
   useEffect(() => {
@@ -352,8 +356,54 @@ export default function MyScoresView({ sessionId, judgeId, token, isLocked, canC
 
   if (dancerEntries.length === 0) {
     return (
-      <div className="text-center py-12 text-gray-500">
-        <p>No scores submitted yet.</p>
+      <div>
+        {canChangePin && (
+          <div className="mb-6">
+            {showPinChange ? (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                {autoExpandPin && (
+                  <p className="text-sm text-blue-700 mb-4">
+                    Your PIN was randomly assigned. Set something memorable to keep your account secure.
+                  </p>
+                )}
+                <p className="text-sm font-medium text-gray-700 mb-4">Choose a new 4-digit PIN</p>
+                <div className="flex flex-col sm:flex-row gap-6 mb-4">
+                  <PINInput length={4} value={newPin} onChange={setNewPin} label="New PIN" />
+                  <PINInput length={4} value={confirmPin} onChange={setConfirmPin} label="Confirm PIN" />
+                </div>
+                {pinMessage && (
+                  <div className={`mb-3 p-2 rounded text-sm ${pinMessage.type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                    {pinMessage.text}
+                  </div>
+                )}
+                <div className="flex gap-3">
+                  <button
+                    onClick={handlePinChange}
+                    disabled={pinSaving || newPin.length !== 4 || confirmPin.length !== 4}
+                    className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {pinSaving ? 'Saving...' : 'Save PIN'}
+                  </button>
+                  <button onClick={handleSkipPinSetup} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">
+                    {autoExpandPin ? 'Skip for now' : 'Cancel'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex justify-end">
+                <button
+                  onClick={() => { setShowPinChange(true); setPinMessage(null); }}
+                  className="text-xs text-gray-400 hover:text-gray-600 underline"
+                >
+                  Change PIN
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+        <div className="text-center py-12 text-gray-500">
+          <p>No scores submitted yet.</p>
+        </div>
       </div>
     );
   }
