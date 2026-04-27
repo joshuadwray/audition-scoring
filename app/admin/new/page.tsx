@@ -95,7 +95,7 @@ export default function NewSessionPage() {
           <form onSubmit={handleVerifyPin}>
             <div className="mb-6">
               <PINInput
-                length={6}
+                length={4}
                 value={createPin}
                 onChange={setCreatePin}
                 label="Admin Create PIN"
@@ -110,7 +110,7 @@ export default function NewSessionPage() {
 
             <button
               type="submit"
-              disabled={pinLoading || createPin.length !== 6}
+              disabled={pinLoading || createPin.length !== 4}
               className="w-full py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
             >
               {pinLoading ? 'Verifying...' : 'Continue'}
