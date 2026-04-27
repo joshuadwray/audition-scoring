@@ -16,13 +16,20 @@ export default function MyScoresPage() {
   const [judgeId, setJudgeId] = useState('');
   const [token, setToken] = useState('');
   const [isLocked, setIsLocked] = useState(false);
+  const [role, setRole] = useState<string>('judge');
+  const [isSetup, setIsSetup] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setIsSetup(params.get('setup') === 'true');
+  }, []);
 
   useEffect(() => {
     const authToken = localStorage.getItem('auth_token');
     const sName = localStorage.getItem('session_name');
     const jName = localStorage.getItem('judge_name');
     const jId = localStorage.getItem('judge_id');
-    const role = localStorage.getItem('user_role');
+    const userRole = localStorage.getItem('user_role');
 
     // Accept judge role, or admin role with admin_judge_id
     if (!authToken) {
@@ -30,10 +37,11 @@ export default function MyScoresPage() {
       return;
     }
 
-    if (role === 'judge') {
+    if (userRole === 'judge') {
       setJudgeId(jId || '');
       setJudgeName(jName || '');
-    } else if (role === 'admin') {
+      setRole('judge');
+    } else if (userRole === 'admin') {
       const adminJudgeId = localStorage.getItem(`admin_judge_id_${sessionId}`);
       if (!adminJudgeId) {
         router.push('/');
@@ -41,6 +49,7 @@ export default function MyScoresPage() {
       }
       setJudgeId(adminJudgeId);
       setJudgeName('Admin');
+      setRole('admin');
     } else {
       router.push('/');
       return;
@@ -68,7 +77,9 @@ export default function MyScoresPage() {
     router.push('/');
   };
 
-  const role = typeof window !== 'undefined' ? localStorage.getItem('user_role') : 'judge';
+  const handlePinChanged = () => {
+    if (judgeId) localStorage.setItem(`pin_set_${judgeId}`, '1');
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -99,6 +110,9 @@ export default function MyScoresPage() {
             judgeId={judgeId}
             token={token}
             isLocked={isLocked}
+            canChangePin={role === 'judge'}
+            autoExpandPin={isSetup}
+            onPinChanged={handlePinChanged}
           />
         )}
       </main>

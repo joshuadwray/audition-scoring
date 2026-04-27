@@ -45,7 +45,12 @@ export default function LandingPage() {
         localStorage.setItem('judge_name', data.judgeName);
         localStorage.setItem('judge_id', data.judgeId);
         localStorage.setItem('session_id', resolvedSessionId);
-        router.push(`/judge/${resolvedSessionId}`);
+        const pinSet = localStorage.getItem(`pin_set_${data.judgeId}`);
+        if (!pinSet) {
+          router.push(`/judge/${resolvedSessionId}/my-scores?setup=true`);
+        } else {
+          router.push(`/judge/${resolvedSessionId}`);
+        }
       } else {
         // For admin, decode the token to get the sessionId (UUID)
         // The token payload has sessionId as UUID

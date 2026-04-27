@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import DancerTile from './DancerTile';
+import PINInput from '@/components/shared/PINInput';
 import type { ScoreState, Dancer, Score, ScoreSubmission, DancerGroup, Material } from '@/lib/database.types';
 import { getMaterialColorByName } from '@/lib/material-colors';
 
@@ -11,6 +12,9 @@ interface MyScoresViewProps {
   judgeId: string;
   token: string;
   isLocked: boolean;
+  canChangePin?: boolean;
+  autoExpandPin?: boolean;
+  onPinChanged?: () => void;
 }
 
 interface MaterialScore {
@@ -24,8 +28,13 @@ interface DancerEntry {
   materials: MaterialScore[];
 }
 
-export default function MyScoresView({ sessionId, judgeId, token, isLocked }: MyScoresViewProps) {
+export default function MyScoresView({ sessionId, judgeId, token, isLocked, canChangePin, autoExpandPin, onPinChanged }: MyScoresViewProps) {
   const [loading, setLoading] = useState(true);
+  const [showPinChange, setShowPinChange] = useState(autoExpandPin || false);
+  const [newPin, setNewPin] = useState('');
+  const [confirmPin, setConfirmPin] = useState('');
+  const [pinSaving, setPinSaving] = useState(false);
+  const [pinMessage, setPinMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [dancerEntries, setDancerEntries] = useState<DancerEntry[]>([]);
   const [editedScores, setEditedScores] = useState<Record<string, ScoreState>>({});
   const [savedScores, setSavedScores] = useState<Record<string, ScoreState>>({});
@@ -230,6 +239,41 @@ export default function MyScoresView({ sessionId, judgeId, token, isLocked }: My
     }));
   };
 
+  const handlePinChange = async () => {
+    if (newPin !== confirmPin) {
+      setPinMessage({ type: 'error', text: 'PINs do not match.' });
+      return;
+    }
+    setPinSaving(true);
+    setPinMessage(null);
+    try {
+      const res = await fetch(`/api/judges/${judgeId}/pin`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ newPin }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setPinMessage({ type: 'error', text: data.error || 'Failed to update PIN.' });
+      } else {
+        setPinMessage({ type: 'success', text: 'PIN updated successfully.' });
+        setNewPin('');
+        setConfirmPin('');
+        setShowPinChange(false);
+        onPinChanged?.();
+      }
+    } catch {
+      setPinMessage({ type: 'error', text: 'Connection error. Try again.' });
+    } finally {
+      setPinSaving(false);
+    }
+  };
+
+  const handleSkipPinSetup = () => {
+    setShowPinChange(false);
+    onPinChanged?.();
+  };
+
   const handleSave = async () => {
     if (saving || !hasDirty) return;
     setSaving(true);
@@ -316,6 +360,55 @@ export default function MyScoresView({ sessionId, judgeId, token, isLocked }: My
 
   return (
     <div className="pb-24">
+      {/* PIN change section */}
+      {canChangePin && (
+        <div className="mb-6">
+          {showPinChange ? (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              {autoExpandPin && (
+                <p className="text-sm text-blue-700 mb-4">
+                  Your PIN was randomly assigned. Set something memorable to keep your account secure.
+                </p>
+              )}
+              <p className="text-sm font-medium text-gray-700 mb-4">Choose a new 4-digit PIN</p>
+              <div className="flex flex-col sm:flex-row gap-6 mb-4">
+                <PINInput length={4} value={newPin} onChange={setNewPin} label="New PIN" />
+                <PINInput length={4} value={confirmPin} onChange={setConfirmPin} label="Confirm PIN" />
+              </div>
+              {pinMessage && (
+                <div className={`mb-3 p-2 rounded text-sm ${pinMessage.type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                  {pinMessage.text}
+                </div>
+              )}
+              <div className="flex gap-3">
+                <button
+                  onClick={handlePinChange}
+                  disabled={pinSaving || newPin.length !== 4 || confirmPin.length !== 4}
+                  className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                >
+                  {pinSaving ? 'Saving...' : 'Save PIN'}
+                </button>
+                <button
+                  onClick={handleSkipPinSetup}
+                  className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700"
+                >
+                  {autoExpandPin ? 'Skip for now' : 'Cancel'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex justify-end">
+              <button
+                onClick={() => { setShowPinChange(true); setPinMessage(null); }}
+                className="text-xs text-gray-400 hover:text-gray-600 underline"
+              >
+                Change PIN
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       <h2 className="text-lg font-semibold text-gray-900 mb-4">My Submitted Scores</h2>
 
       {isLocked && (

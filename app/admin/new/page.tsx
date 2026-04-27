@@ -89,8 +89,8 @@ export default function NewSessionPage() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <div className="w-full max-w-md bg-white rounded-xl shadow-lg p-8">
-          <h1 className="text-2xl font-bold text-center text-gray-900 mb-2">Admin Access</h1>
-          <p className="text-center text-gray-500 mb-8">Enter your admin PIN to create a new session</p>
+          <h1 className="text-2xl font-bold text-center text-gray-900 mb-2">Admin Authorization</h1>
+          <p className="text-center text-gray-500 mb-8">Enter session creation PIN to continue</p>
 
           <form onSubmit={handleVerifyPin}>
             <div className="mb-6">
@@ -98,7 +98,7 @@ export default function NewSessionPage() {
                 length={4}
                 value={createPin}
                 onChange={setCreatePin}
-                label="Admin Create PIN"
+                label="Session Creation PIN"
               />
             </div>
 
