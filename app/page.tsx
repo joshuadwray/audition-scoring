@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import PINInput from '@/components/shared/PINInput';
 
 export default function LandingPage() {
@@ -137,9 +138,9 @@ export default function LandingPage() {
 
         <p className="text-center text-xs text-gray-400 mt-4">
           Need to create a new session?{' '}
-          <a href="/admin/new" className="text-blue-500 hover:text-blue-700 underline">
+          <Link href="/admin/new" className="text-blue-500 hover:text-blue-700 underline">
             Create session
-          </a>
+          </Link>
         </p>
       </div>
     </div>
