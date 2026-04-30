@@ -73,6 +73,12 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'Failed to archive group' }, { status: 500 });
     }
 
+    await supabaseAdmin.from('admin_actions').insert({
+      session_id: template.session_id,
+      action_type: 'archive_group',
+      details: { group_id: groupId, group_number: template.group_number },
+    });
+
     return NextResponse.json({ success: true });
   } catch {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
