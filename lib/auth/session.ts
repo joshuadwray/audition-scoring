@@ -7,7 +7,7 @@ if (!JWT_SECRET || JWT_SECRET.length < 32) {
 }
 
 export function createToken(payload: Omit<TokenPayload, 'iat' | 'exp'>): string {
-  return jwt.sign(payload, JWT_SECRET!, { expiresIn: '24h' });
+  return jwt.sign(payload, JWT_SECRET!, { expiresIn: '12h' });
 }
 
 export function verifyToken(token: string): TokenPayload | null {
