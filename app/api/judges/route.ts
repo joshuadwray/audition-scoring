@@ -156,7 +156,7 @@ export async function DELETE(request: Request) {
     // Verify judge belongs to admin's session
     const { data: judge } = await supabaseAdmin
       .from('judges')
-      .select('session_id')
+      .select('session_id, name')
       .eq('id', judgeId)
       .single();
 
@@ -173,6 +173,12 @@ export async function DELETE(request: Request) {
       console.error('judges.delete', error);
       return NextResponse.json({ error: 'Failed to remove judge' }, { status: 500 });
     }
+
+    await supabaseAdmin.from('admin_actions').insert({
+      session_id: judge.session_id,
+      action_type: 'deactivate_judge',
+      details: { judge_id: judgeId, name: judge.name },
+    });
 
     return NextResponse.json({ success: true });
   } catch {

@@ -59,6 +59,12 @@ export async function PATCH(
       return NextResponse.json({ error: 'Failed to update PIN' }, { status: 500 });
     }
 
+    await supabaseAdmin.from('admin_actions').insert({
+      session_id: judge.session_id,
+      action_type: 'judge_pin_change',
+      details: { judge_id: id },
+    });
+
     return NextResponse.json({ success: true });
   } catch {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

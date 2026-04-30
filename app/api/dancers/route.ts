@@ -128,7 +128,7 @@ export async function DELETE(request: Request) {
     // Verify dancer belongs to admin's session
     const { data: dancer } = await supabaseAdmin
       .from('dancers')
-      .select('session_id')
+      .select('session_id, dancer_number, name')
       .eq('id', dancerId)
       .single();
 
@@ -178,6 +178,12 @@ export async function DELETE(request: Request) {
       console.error('dancers.delete', error);
       return NextResponse.json({ error: 'Failed to delete dancer' }, { status: 500 });
     }
+
+    await supabaseAdmin.from('admin_actions').insert({
+      session_id: dancer.session_id,
+      action_type: 'delete_dancer',
+      details: { dancer_id: dancerId, dancer_number: dancer.dancer_number, name: dancer.name, force },
+    });
 
     return NextResponse.json({ success: true });
   } catch {

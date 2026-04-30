@@ -69,6 +69,12 @@ export async function PATCH(
       return NextResponse.json({ error: 'Failed to update session' }, { status: 500 });
     }
 
+    await supabaseAdmin.from('admin_actions').insert({
+      session_id: id,
+      action_type: 'edit_session',
+      details: { updated_fields: Object.keys(safeUpdates) },
+    });
+
     return NextResponse.json(data);
   } catch {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -82,6 +88,19 @@ export async function DELETE(
   try {
     const { id } = await params;
     requireSessionAdmin(request, id);
+
+    const { data: session } = await supabaseAdmin
+      .from('sessions')
+      .select('name, session_code')
+      .eq('id', id)
+      .single();
+
+    // Log before deleting — admin_actions FK cascades on session delete
+    await supabaseAdmin.from('admin_actions').insert({
+      session_id: id,
+      action_type: 'delete_session',
+      details: { name: session?.name, session_code: session?.session_code },
+    });
 
     const { error } = await supabaseAdmin
       .from('sessions')
