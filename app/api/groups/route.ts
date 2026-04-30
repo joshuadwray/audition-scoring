@@ -1,38 +1,44 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import { requireAdmin } from '@/lib/auth/session';
+import { requireSessionAdmin } from '@/lib/auth/session';
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const sessionId = searchParams.get('sessionId');
-  const materialId = searchParams.get('materialId');
-  const status = searchParams.get('status');
+  try {
+    const { searchParams } = new URL(request.url);
+    const sessionId = searchParams.get('sessionId');
+    const materialId = searchParams.get('materialId');
+    const status = searchParams.get('status');
 
-  if (!sessionId) {
-    return NextResponse.json({ error: 'sessionId required' }, { status: 400 });
+    if (!sessionId) {
+      return NextResponse.json({ error: 'sessionId required' }, { status: 400 });
+    }
+
+    requireSessionAdmin(request, sessionId);
+
+    let query = supabaseAdmin
+      .from('dancer_groups')
+      .select('*, materials(name)')
+      .eq('session_id', sessionId)
+      .order('group_number');
+
+    if (materialId) query = query.eq('material_id', materialId);
+    if (status) query = query.eq('status', status);
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('groups.list', error);
+      return NextResponse.json({ error: 'Failed to list groups' }, { status: 500 });
+    }
+
+    return NextResponse.json(data);
+  } catch {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-
-  let query = supabaseAdmin
-    .from('dancer_groups')
-    .select('*, materials(name)')
-    .eq('session_id', sessionId)
-    .order('group_number');
-
-  if (materialId) query = query.eq('material_id', materialId);
-  if (status) query = query.eq('status', status);
-
-  const { data, error } = await query;
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json(data);
 }
 
 export async function DELETE(request: Request) {
   try {
-    requireAdmin(request);
     const { searchParams } = new URL(request.url);
     const groupId = searchParams.get('groupId');
 
@@ -40,7 +46,6 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'groupId required' }, { status: 400 });
     }
 
-    // Get the template to find its session_id and group_number
     const { data: template, error: fetchError } = await supabaseAdmin
       .from('dancer_groups')
       .select('session_id, group_number, material_id')
@@ -51,11 +56,12 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'Group not found' }, { status: 404 });
     }
 
+    requireSessionAdmin(request, template.session_id);
+
     if (template.material_id !== null) {
       return NextResponse.json({ error: 'Cannot archive an instance, archive the template instead' }, { status: 400 });
     }
 
-    // Archive the template and all instances with same group_number + session_id
     const { error } = await supabaseAdmin
       .from('dancer_groups')
       .update({ is_archived: true })
@@ -63,7 +69,8 @@ export async function DELETE(request: Request) {
       .eq('group_number', template.group_number);
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.error('groups.archive', error);
+      return NextResponse.json({ error: 'Failed to archive group' }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });
@@ -74,12 +81,13 @@ export async function DELETE(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    requireAdmin(request);
     const { sessionId, materialId, dancerIds, groupNumber } = await request.json();
 
     if (!sessionId || !dancerIds || !groupNumber) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
+
+    requireSessionAdmin(request, sessionId);
 
     const { data, error } = await supabaseAdmin
       .from('dancer_groups')
@@ -93,7 +101,8 @@ export async function POST(request: Request) {
       .single();
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.error('groups.create', error);
+      return NextResponse.json({ error: 'Failed to create group' }, { status: 500 });
     }
 
     return NextResponse.json(data, { status: 201 });

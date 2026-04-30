@@ -27,7 +27,6 @@ export interface Session {
   date: string;
   status: 'setup' | 'active' | 'paused' | 'completed';
   is_locked: boolean;
-  admin_pin: string;
   created_at: string;
   updated_at: string;
 }
@@ -52,10 +51,11 @@ export interface Judge {
   id: string;
   session_id: string;
   name: string;
-  judge_pin: string;
   is_active: boolean;
   is_admin_judge: boolean;
   created_at: string;
+  /** Only present in the single POST /api/judges response — never stored or re-exposed */
+  judge_pin?: string;
 }
 
 export interface DancerGroup {

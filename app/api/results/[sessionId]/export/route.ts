@@ -1,9 +1,16 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import { requireAdmin } from '@/lib/auth/session';
+import { requireSessionAdmin } from '@/lib/auth/session';
 import { calculateDancerResults, calculateAggregatedResults } from '@/lib/scoring/olympic-average';
 import { SCORE_CATEGORIES, CATEGORY_LABELS } from '@/lib/database.types';
 import type { Score, DancerGroup } from '@/lib/database.types';
+
+function escapeCsv(v: unknown): string {
+  let s = String(v ?? '');
+  // Prefix formula-injection characters to prevent spreadsheet formula execution
+  if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+  return `"${s.replace(/"/g, '""')}"`;
+}
 
 export async function GET(
   request: Request,
@@ -11,12 +18,12 @@ export async function GET(
 ) {
   try {
     const { sessionId } = await params;
-    requireAdmin(request);
+    requireSessionAdmin(request, sessionId);
+
     const { searchParams } = new URL(request.url);
     const materialId = searchParams.get('materialId');
     const format = searchParams.get('format') || 'csv';
 
-    // Get dancers
     let dancerQuery = supabaseAdmin
       .from('dancers')
       .select('*')
@@ -24,7 +31,6 @@ export async function GET(
       .order('dancer_number');
 
     if (materialId) {
-      // Derive dancer set from groups with this material
       const { data: matGroups } = await supabaseAdmin
         .from('dancer_groups')
         .select('dancer_ids')
@@ -43,10 +49,10 @@ export async function GET(
 
     const { data: dancers, error: dancerError } = await dancerQuery;
     if (dancerError) {
-      return NextResponse.json({ error: dancerError.message }, { status: 500 });
+      console.error('results.export.dancers', dancerError);
+      return NextResponse.json({ error: 'Failed to fetch results' }, { status: 500 });
     }
 
-    // Get all scores for these dancers
     const dancerIds = (dancers || []).map(d => d.id);
     const { data: scores, error: scoreError } = await supabaseAdmin
       .from('scores')
@@ -54,13 +60,13 @@ export async function GET(
       .in('dancer_id', dancerIds);
 
     if (scoreError) {
-      return NextResponse.json({ error: scoreError.message }, { status: 500 });
+      console.error('results.export.scores', scoreError);
+      return NextResponse.json({ error: 'Failed to fetch results' }, { status: 500 });
     }
 
     const allScores = (scores || []) as Score[];
 
     if (materialId) {
-      // Single material mode: filter scores by groups of that material
       const { data: groups } = await supabaseAdmin
         .from('dancer_groups')
         .select('id')
@@ -75,7 +81,6 @@ export async function GET(
         return calculateDancerResults(dancer.id, dancer.dancer_number, dancer.name, dancerScores);
       });
 
-      // Sort by olympic average descending
       results.sort((a, b) => (b.olympicAverage ?? 0) - (a.olympicAverage ?? 0));
 
       if (format === 'json') {
@@ -92,11 +97,8 @@ export async function GET(
       ]);
 
       const csv = [
-        headers.join(','),
-        ...rows.map(row => row.map(cell => {
-          const str = String(cell);
-          return str.includes(',') ? `"${str}"` : str;
-        }).join(','))
+        headers.map(escapeCsv).join(','),
+        ...rows.map(row => row.map(escapeCsv).join(','))
       ].join('\n');
 
       return new Response(csv, {
@@ -107,7 +109,6 @@ export async function GET(
       });
     }
 
-    // Aggregated mode: build group→material map
     const { data: groups } = await supabaseAdmin
       .from('dancer_groups')
       .select('*, materials(name)')
@@ -115,7 +116,6 @@ export async function GET(
 
     const groupMaterialMap = new Map<string, { materialId: string; materialName: string }>();
     for (const g of (groups || []) as (DancerGroup & { materials?: { name: string } | null })[]) {
-      // Only include instance groups (with material_id) in the map
       if (g.material_id) {
         groupMaterialMap.set(g.id, {
           materialId: g.material_id,
@@ -125,29 +125,24 @@ export async function GET(
     }
 
     const aggregatedResults = calculateAggregatedResults(dancers || [], allScores, groupMaterialMap);
-
-    // Sort by olympic average descending
     aggregatedResults.sort((a, b) => (b.olympicAverage ?? 0) - (a.olympicAverage ?? 0));
 
     if (format === 'json') {
       return NextResponse.json(aggregatedResults);
     }
 
-    // Generate CSV with aggregated top-level rows and per-material detail rows
     const headers = ['Dancer #', 'Name', ...SCORE_CATEGORIES.map(c => CATEGORY_LABELS[c]), 'Total Score', 'Olympic Average'];
-    const csvRows: string[][] = [];
+    const csvRows: unknown[][] = [];
 
     for (const r of aggregatedResults) {
-      // Top-level aggregated row
       csvRows.push([
-        String(r.dancerNumber),
+        r.dancerNumber,
         r.dancerName,
         ...SCORE_CATEGORIES.map(c => r.categoryTotals[c]?.toFixed(2) ?? 'N/A'),
         r.totalScore?.toFixed(2) ?? 'N/A',
         r.olympicAverage?.toFixed(2) ?? 'N/A',
       ]);
 
-      // Per-material detail rows (only if multiple materials)
       if (r.materialResults.length > 1) {
         for (const mr of r.materialResults) {
           csvRows.push([
@@ -162,11 +157,8 @@ export async function GET(
     }
 
     const csv = [
-      headers.join(','),
-      ...csvRows.map(row => row.map(cell => {
-        const str = String(cell);
-        return str.includes(',') ? `"${str}"` : str;
-      }).join(','))
+      headers.map(escapeCsv).join(','),
+      ...csvRows.map(row => row.map(escapeCsv).join(','))
     ].join('\n');
 
     return new Response(csv, {

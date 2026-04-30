@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import { requireAdmin } from '@/lib/auth/session';
+import { requireSessionAdmin } from '@/lib/auth/session';
 
 export async function POST(
   request: Request,
@@ -8,7 +8,7 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
-    requireAdmin(request);
+    requireSessionAdmin(request, id);
 
     const { data, error } = await supabaseAdmin
       .from('sessions')
@@ -18,14 +18,14 @@ export async function POST(
         updated_at: new Date().toISOString(),
       })
       .eq('id', id)
-      .select()
+      .select('id, session_code, name, date, status, is_locked, created_at, updated_at')
       .single();
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.error('sessions.lock', error);
+      return NextResponse.json({ error: 'Failed to lock session' }, { status: 500 });
     }
 
-    // Log admin action
     await supabaseAdmin.from('admin_actions').insert({
       session_id: id,
       action_type: 'lock_session',
@@ -44,7 +44,7 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    requireAdmin(request);
+    requireSessionAdmin(request, id);
 
     const { data, error } = await supabaseAdmin
       .from('sessions')
@@ -54,14 +54,14 @@ export async function DELETE(
         updated_at: new Date().toISOString(),
       })
       .eq('id', id)
-      .select()
+      .select('id, session_code, name, date, status, is_locked, created_at, updated_at')
       .single();
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.error('sessions.unlock', error);
+      return NextResponse.json({ error: 'Failed to unlock session' }, { status: 500 });
     }
 
-    // Log admin action
     await supabaseAdmin.from('admin_actions').insert({
       session_id: id,
       action_type: 'unlock_session',

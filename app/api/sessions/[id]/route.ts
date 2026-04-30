@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import { requireAdmin } from '@/lib/auth/session';
+import { requireSessionAdmin } from '@/lib/auth/session';
 
 function isUUID(value: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
@@ -10,23 +10,34 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params;
+  try {
+    const { id } = await params;
 
-  // Try UUID first, then session_code
-  const column = isUUID(id) ? 'id' : 'session_code';
-  const lookupValue = isUUID(id) ? id : id.toUpperCase();
+    // Resolve UUID or session_code
+    const column = isUUID(id) ? 'id' : 'session_code';
+    const lookupValue = isUUID(id) ? id : id.toUpperCase();
 
-  const { data, error } = await supabaseAdmin
-    .from('sessions')
-    .select('*')
-    .eq(column, lookupValue)
-    .single();
+    const { data, error } = await supabaseAdmin
+      .from('sessions')
+      .select('id, session_code, name, date, status, is_locked, created_at, updated_at')
+      .eq(column, lookupValue)
+      .single();
 
-  if (error || !data) {
+    if (error || !data) {
+      return NextResponse.json({ error: 'Session not found' }, { status: 404 });
+    }
+
+    // Require admin auth scoped to this session
+    requireSessionAdmin(request, data.id);
+
+    return NextResponse.json(data);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : '';
+    if (msg.includes('Forbidden') || msg.includes('Unauthorized')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     return NextResponse.json({ error: 'Session not found' }, { status: 404 });
   }
-
-  return NextResponse.json(data);
 }
 
 export async function PATCH(
@@ -35,18 +46,27 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params;
-    requireAdmin(request);
-    const updates = await request.json();
+    requireSessionAdmin(request, id);
+
+    const body = await request.json();
+
+    // Allow-list: only these fields may be updated via this endpoint
+    const allowed = ['name', 'date', 'status'] as const;
+    const safeUpdates: Record<string, unknown> = {};
+    for (const key of allowed) {
+      if (body[key] !== undefined) safeUpdates[key] = body[key];
+    }
 
     const { data, error } = await supabaseAdmin
       .from('sessions')
-      .update({ ...updates, updated_at: new Date().toISOString() })
+      .update({ ...safeUpdates, updated_at: new Date().toISOString() })
       .eq('id', id)
-      .select()
+      .select('id, session_code, name, date, status, is_locked, created_at, updated_at')
       .single();
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.error('sessions.update', error);
+      return NextResponse.json({ error: 'Failed to update session' }, { status: 500 });
     }
 
     return NextResponse.json(data);
@@ -61,7 +81,7 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    requireAdmin(request);
+    requireSessionAdmin(request, id);
 
     const { error } = await supabaseAdmin
       .from('sessions')
@@ -69,7 +89,8 @@ export async function DELETE(
       .eq('id', id);
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.error('sessions.delete', error);
+      return NextResponse.json({ error: 'Failed to delete session' }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });

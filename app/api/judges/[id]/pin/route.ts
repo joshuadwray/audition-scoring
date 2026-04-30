@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import bcrypt from 'bcryptjs';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { requireJudge } from '@/lib/auth/session';
 
@@ -21,7 +22,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'PIN must be exactly 4 digits' }, { status: 400 });
     }
 
-    // Get judge's session
+    // Get judge's session for uniqueness check
     const { data: judge } = await supabaseAdmin
       .from('judges')
       .select('session_id')
@@ -32,26 +33,30 @@ export async function PATCH(
       return NextResponse.json({ error: 'Judge not found' }, { status: 404 });
     }
 
-    // Check PIN uniqueness within the session
-    const { data: conflict } = await supabaseAdmin
+    // Check PIN uniqueness by comparing against all other judges' hashes in this session
+    const { data: otherJudges } = await supabaseAdmin
       .from('judges')
-      .select('id')
+      .select('id, judge_secrets(judge_pin_hash)')
       .eq('session_id', judge.session_id)
-      .eq('judge_pin', newPin)
-      .neq('id', id)
-      .single();
+      .eq('is_active', true)
+      .neq('id', id);
 
-    if (conflict) {
-      return NextResponse.json({ error: 'That PIN is already in use. Choose a different one.' }, { status: 409 });
+    for (const j of (otherJudges || [])) {
+      const secret = (j.judge_secrets as unknown as { judge_pin_hash: string } | null);
+      if (secret && await bcrypt.compare(newPin, secret.judge_pin_hash)) {
+        return NextResponse.json({ error: 'That PIN is already in use. Choose a different one.' }, { status: 409 });
+      }
     }
 
+    const pinHash = await bcrypt.hash(newPin, 12);
     const { error } = await supabaseAdmin
-      .from('judges')
-      .update({ judge_pin: newPin })
-      .eq('id', id);
+      .from('judge_secrets')
+      .update({ judge_pin_hash: pinHash, updated_at: new Date().toISOString() })
+      .eq('judge_id', id);
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.error('judge.pin.change', error);
+      return NextResponse.json({ error: 'Failed to update PIN' }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });

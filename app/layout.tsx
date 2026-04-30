@@ -19,7 +19,7 @@ export default function RootLayout({
   const supabaseConfig = JSON.stringify({
     url: process.env.NEXT_PUBLIC_SUPABASE_URL || '',
     anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
-  });
+  }).replace(/</g, '\\u003c');
 
   return (
     <html lang="en">

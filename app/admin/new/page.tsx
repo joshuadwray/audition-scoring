@@ -18,7 +18,7 @@ export default function NewSessionPage() {
   const [adminPin, setAdminPin] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [createdSession, setCreatedSession] = useState<{ id: string; session_code: string; admin_pin: string } | null>(null);
+  const [createdSession, setCreatedSession] = useState<{ id: string; session_code: string } | null>(null);
 
   useEffect(() => {
     if (sessionStorage.getItem(SESSION_STORAGE_KEY) === '1') {
@@ -66,7 +66,7 @@ export default function NewSessionPage() {
       const res = await fetch('/api/sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, date, adminPin, sessionCode }),
+        body: JSON.stringify({ name, date, adminPin, sessionCode, createPin }),
       });
 
       const data = await res.json();
@@ -147,7 +147,7 @@ export default function NewSessionPage() {
             </div>
             <div>
               <span className="text-xs font-medium text-gray-500 uppercase">Admin PIN</span>
-              <p className="font-mono text-2xl font-bold text-gray-900 tracking-widest">{createdSession.admin_pin}</p>
+              <p className="font-mono text-2xl font-bold text-gray-900 tracking-widest">{adminPin}</p>
             </div>
           </div>
 

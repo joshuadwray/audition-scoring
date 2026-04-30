@@ -36,6 +36,8 @@ export default function AdminDashboard() {
   // Add judge form state
   const [newJudgeName, setNewJudgeName] = useState('');
   const [addingJudge, setAddingJudge] = useState(false);
+  // PIN is shown once at creation time, then hidden
+  const [newlyCreatedJudge, setNewlyCreatedJudge] = useState<{ id: string; pin: string; name: string } | null>(null);
 
   // Add material form state
   const [newMaterialName, setNewMaterialName] = useState('');
@@ -169,9 +171,10 @@ export default function AdminDashboard() {
   const handleAddJudge = async () => {
     if (!newJudgeName.trim()) return;
     setAddingJudge(true);
+    setNewlyCreatedJudge(null);
 
     try {
-      await fetch('/api/judges', {
+      const res = await fetch('/api/judges', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -179,6 +182,10 @@ export default function AdminDashboard() {
         },
         body: JSON.stringify({ name: newJudgeName.trim(), sessionId }),
       });
+      const data = await res.json();
+      if (res.ok && data.judge_pin) {
+        setNewlyCreatedJudge({ id: data.id, pin: data.judge_pin, name: data.name });
+      }
       setNewJudgeName('');
       loadJudges();
     } catch {
@@ -772,6 +779,28 @@ export default function AdminDashboard() {
             {/* Judges */}
             <div className="bg-white rounded-lg border border-gray-200 p-4">
               <h3 className="font-semibold text-gray-900 mb-3">Judges</h3>
+              {newlyCreatedJudge && (
+                <div className="mb-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-sm font-medium text-green-800">{newlyCreatedJudge.name} added</span>
+                      <div className="mt-1">
+                        <span className="text-xs text-green-700">PIN (shown once): </span>
+                        <span className="font-mono font-bold text-green-900 tracking-widest">{newlyCreatedJudge.pin}</span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(newlyCreatedJudge.pin);
+                      }}
+                      className="text-xs px-2 py-1 bg-green-100 hover:bg-green-200 text-green-800 rounded transition-colors"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                  <p className="mt-1 text-xs text-green-600">Share this PIN with the judge. It will not be shown again.</p>
+                </div>
+              )}
               {judges.length > 0 && (
                 <div className="space-y-2 mb-3">
                   {judges.map(j => (
@@ -781,7 +810,11 @@ export default function AdminDashboard() {
                         {j.is_admin_judge && (
                           <span className="ml-2 px-1.5 py-0.5 bg-purple-100 text-purple-700 text-xs rounded">Admin</span>
                         )}
-                        <span className="ml-3 font-mono text-sm text-gray-500">PIN: {j.judge_pin}</span>
+                        {newlyCreatedJudge?.id === j.id ? (
+                          <span className="ml-3 font-mono text-sm text-green-700 font-bold">PIN: {newlyCreatedJudge.pin}</span>
+                        ) : (
+                          <span className="ml-3 text-sm text-gray-400 italic">PIN hidden</span>
+                        )}
                       </div>
                       <button
                         onClick={() => handleRemoveJudge(j.id)}

@@ -8,29 +8,39 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params;
-  const { searchParams } = new URL(request.url);
-  const groupId = searchParams.get('groupId');
-  const judgeId = searchParams.get('judgeId');
-  const dancerId = searchParams.get('dancerId');
+  try {
+    const { id } = await params;
+    const token = validateAndExtractToken(request);
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
-  let query = supabaseAdmin.from('scores').select('*');
+    const { searchParams } = new URL(request.url);
+    const groupId = searchParams.get('groupId');
+    const judgeId = searchParams.get('judgeId');
+    const dancerId = searchParams.get('dancerId');
 
-  if (id !== 'list') {
-    query = query.eq('id', id);
-  } else {
-    if (groupId) query = query.eq('group_id', groupId);
-    if (judgeId) query = query.eq('judge_id', judgeId);
-    if (dancerId) query = query.eq('dancer_id', dancerId);
+    let query = supabaseAdmin.from('scores').select('*');
+
+    if (id !== 'list') {
+      query = query.eq('id', id);
+    } else {
+      if (groupId) query = query.eq('group_id', groupId);
+      if (judgeId) query = query.eq('judge_id', judgeId);
+      if (dancerId) query = query.eq('dancer_id', dancerId);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('scores.list', error);
+      return NextResponse.json({ error: 'Failed to fetch scores' }, { status: 500 });
+    }
+
+    return NextResponse.json(data);
+  } catch {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-
-  const { data, error } = await query;
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json(data);
 }
 
 export async function PATCH(
@@ -44,7 +54,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get the score to check ownership and session lock status
+    // Load score to verify ownership and session
     const { data: score } = await supabaseAdmin
       .from('scores')
       .select('*, dancer_groups(session_id)')
@@ -57,6 +67,11 @@ export async function PATCH(
 
     const sessionId = (score.dancer_groups as unknown as { session_id: string }).session_id;
 
+    // Verify token belongs to this session
+    if (token.sessionId !== sessionId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     // Check session lock
     const { data: session } = await supabaseAdmin
       .from('sessions')
@@ -68,39 +83,41 @@ export async function PATCH(
       return NextResponse.json({ error: 'Session is locked. No further edits allowed.' }, { status: 403 });
     }
 
-    // If judge, verify they own the score
+    // Judges may only edit their own scores
     if (token.role === 'judge' && score.judge_id !== token.judgeId) {
       return NextResponse.json({ error: 'Cannot edit another judge\'s score' }, { status: 403 });
     }
 
-    const updates = await request.json();
+    const body = await request.json();
 
-    // Validate score values
+    // Allow-list: only score category fields may be updated
+    const safeUpdates: Record<string, unknown> = {};
     for (const cat of SCORE_CATEGORIES) {
-      if (updates[cat] !== undefined) {
-        if (!isValidScore(updates[cat])) {
+      if (body[cat] !== undefined) {
+        if (!isValidScore(body[cat])) {
           return NextResponse.json({ error: `Invalid score for ${cat}: must be 1-5 in 0.5 increments` }, { status: 400 });
         }
+        safeUpdates[cat] = body[cat];
       }
     }
 
     const { data, error } = await supabaseAdmin
       .from('scores')
-      .update({ ...updates, updated_at: new Date().toISOString() })
+      .update({ ...safeUpdates, updated_at: new Date().toISOString() })
       .eq('id', id)
       .select()
       .single();
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.error('scores.update', error);
+      return NextResponse.json({ error: 'Failed to update score' }, { status: 500 });
     }
 
-    // Log if admin edited
     if (token.role === 'admin') {
       await supabaseAdmin.from('admin_actions').insert({
         session_id: sessionId,
         action_type: 'edit_score',
-        details: { score_id: id, updates },
+        details: { score_id: id, updates: safeUpdates },
       });
     }
 

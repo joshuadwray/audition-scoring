@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import { requireAdmin } from '@/lib/auth/session';
+import { requireSessionAdmin } from '@/lib/auth/session';
 
 export async function POST(
   request: Request,
@@ -8,7 +8,18 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
-    requireAdmin(request);
+
+    const { data: group } = await supabaseAdmin
+      .from('dancer_groups')
+      .select('session_id')
+      .eq('id', id)
+      .single();
+
+    if (!group) {
+      return NextResponse.json({ error: 'Group not found' }, { status: 404 });
+    }
+
+    requireSessionAdmin(request, group.session_id);
 
     const { data, error } = await supabaseAdmin
       .from('dancer_groups')
@@ -22,7 +33,8 @@ export async function POST(
       .single();
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.error('groups.complete', error);
+      return NextResponse.json({ error: 'Failed to complete group' }, { status: 500 });
     }
 
     return NextResponse.json(data);

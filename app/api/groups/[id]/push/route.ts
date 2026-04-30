@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import { requireAdmin } from '@/lib/auth/session';
+import { requireSessionAdmin } from '@/lib/auth/session';
 
 export async function POST(
   request: Request,
@@ -8,9 +8,7 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
-    requireAdmin(request);
 
-    // Read materialId from request body
     let materialId: string | undefined;
     try {
       const body = await request.json();
@@ -23,7 +21,6 @@ export async function POST(
       return NextResponse.json({ error: 'materialId is required' }, { status: 400 });
     }
 
-    // Load source group (template)
     const { data: sourceGroup, error: loadError } = await supabaseAdmin
       .from('dancer_groups')
       .select('*')
@@ -34,7 +31,8 @@ export async function POST(
       return NextResponse.json({ error: 'Group not found' }, { status: 404 });
     }
 
-    // Create a new instance row cloned from the template
+    requireSessionAdmin(request, sourceGroup.session_id);
+
     const { data: instance, error: insertError } = await supabaseAdmin
       .from('dancer_groups')
       .insert({
@@ -49,10 +47,10 @@ export async function POST(
       .single();
 
     if (insertError) {
-      return NextResponse.json({ error: insertError.message }, { status: 500 });
+      console.error('groups.push', insertError);
+      return NextResponse.json({ error: 'Failed to push group' }, { status: 500 });
     }
 
-    // Log admin action
     await supabaseAdmin.from('admin_actions').insert({
       session_id: sourceGroup.session_id,
       action_type: 'push_group',

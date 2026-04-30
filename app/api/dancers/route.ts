@@ -1,39 +1,47 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import { requireAdmin } from '@/lib/auth/session';
+import { requireSessionAdmin } from '@/lib/auth/session';
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const sessionId = searchParams.get('sessionId');
+  try {
+    const { searchParams } = new URL(request.url);
+    const sessionId = searchParams.get('sessionId');
 
-  if (!sessionId) {
-    return NextResponse.json({ error: 'sessionId required' }, { status: 400 });
+    if (!sessionId) {
+      return NextResponse.json({ error: 'sessionId required' }, { status: 400 });
+    }
+
+    requireSessionAdmin(request, sessionId);
+
+    const { data, error } = await supabaseAdmin
+      .from('dancers')
+      .select('*')
+      .eq('session_id', sessionId)
+      .order('dancer_number');
+
+    if (error) {
+      console.error('dancers.list', error);
+      return NextResponse.json({ error: 'Failed to list dancers' }, { status: 500 });
+    }
+
+    return NextResponse.json(data);
+  } catch {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-
-  const { data, error } = await supabaseAdmin
-    .from('dancers')
-    .select('*')
-    .eq('session_id', sessionId)
-    .order('dancer_number');
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json(data);
 }
 
 export async function POST(request: Request) {
   try {
-    requireAdmin(request);
     const body = await request.json();
 
-    // Create a material (no dancer)
+    // Create a material
     if (body._createMaterial) {
       const { sessionId, materialName } = body;
       if (!sessionId || !materialName) {
         return NextResponse.json({ error: 'sessionId and materialName required' }, { status: 400 });
       }
+
+      requireSessionAdmin(request, sessionId);
 
       const { data, error } = await supabaseAdmin
         .from('materials')
@@ -42,16 +50,17 @@ export async function POST(request: Request) {
         .single();
 
       if (error) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        console.error('materials.create', error);
+        return NextResponse.json({ error: 'Failed to create material' }, { status: 500 });
       }
 
       return NextResponse.json(data, { status: 201 });
     }
 
-    // Support both single and bulk insert
+    // Bulk import
     if (Array.isArray(body.dancers)) {
-      // Bulk import
       const { dancers, sessionId } = body;
+      requireSessionAdmin(request, sessionId);
 
       const insertedDancers = [];
       for (const d of dancers) {
@@ -67,7 +76,8 @@ export async function POST(request: Request) {
           .single();
 
         if (error) {
-          return NextResponse.json({ error: `Failed to import dancer #${d.dancer_number}: ${error.message}` }, { status: 500 });
+          console.error('dancers.bulk.create', error);
+          return NextResponse.json({ error: `Failed to import dancer #${d.dancer_number}` }, { status: 500 });
         }
 
         insertedDancers.push(dancer);
@@ -83,6 +93,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'session_id, dancer_number, and name are required' }, { status: 400 });
     }
 
+    requireSessionAdmin(request, session_id);
+
     const { data, error } = await supabaseAdmin
       .from('dancers')
       .insert({ session_id, dancer_number, name, grade: grade || null })
@@ -93,7 +105,8 @@ export async function POST(request: Request) {
       if (error.code === '23505') {
         return NextResponse.json({ error: `Dancer #${dancer_number} already exists in this session` }, { status: 409 });
       }
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.error('dancers.create', error);
+      return NextResponse.json({ error: 'Failed to create dancer' }, { status: 500 });
     }
 
     return NextResponse.json(data, { status: 201 });
@@ -104,7 +117,6 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
-    requireAdmin(request);
     const { searchParams } = new URL(request.url);
     const dancerId = searchParams.get('id');
     const force = searchParams.get('force') === 'true';
@@ -112,6 +124,19 @@ export async function DELETE(request: Request) {
     if (!dancerId) {
       return NextResponse.json({ error: 'Dancer id required' }, { status: 400 });
     }
+
+    // Verify dancer belongs to admin's session
+    const { data: dancer } = await supabaseAdmin
+      .from('dancers')
+      .select('session_id')
+      .eq('id', dancerId)
+      .single();
+
+    if (!dancer) {
+      return NextResponse.json({ error: 'Dancer not found' }, { status: 404 });
+    }
+
+    requireSessionAdmin(request, dancer.session_id);
 
     // Check for existing scores
     const { data: scores } = await supabaseAdmin
@@ -128,11 +153,7 @@ export async function DELETE(request: Request) {
     }
 
     if (scores && scores.length > 0) {
-      // Force delete: remove scores first
-      await supabaseAdmin
-        .from('scores')
-        .delete()
-        .eq('dancer_id', dancerId);
+      await supabaseAdmin.from('scores').delete().eq('dancer_id', dancerId);
     }
 
     // Remove dancer from dancer_groups.dancer_ids arrays
@@ -151,14 +172,11 @@ export async function DELETE(request: Request) {
       }
     }
 
-    // Delete dancer
-    const { error } = await supabaseAdmin
-      .from('dancers')
-      .delete()
-      .eq('id', dancerId);
+    const { error } = await supabaseAdmin.from('dancers').delete().eq('id', dancerId);
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.error('dancers.delete', error);
+      return NextResponse.json({ error: 'Failed to delete dancer' }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });

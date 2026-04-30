@@ -1,15 +1,18 @@
 import jwt from 'jsonwebtoken';
 import { TokenPayload } from '@/lib/database.types';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET || JWT_SECRET.length < 32) {
+  throw new Error('JWT_SECRET env var must be set to at least 32 characters');
+}
 
 export function createToken(payload: Omit<TokenPayload, 'iat' | 'exp'>): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: '24h' });
+  return jwt.sign(payload, JWT_SECRET!, { expiresIn: '24h' });
 }
 
 export function verifyToken(token: string): TokenPayload | null {
   try {
-    return jwt.verify(token, JWT_SECRET) as TokenPayload;
+    return jwt.verify(token, JWT_SECRET!) as TokenPayload;
   } catch {
     return null;
   }
@@ -35,6 +38,15 @@ export function requireAdmin(request: Request): TokenPayload {
   return payload;
 }
 
+/** requireAdmin + enforces token.sessionId === sessionId */
+export function requireSessionAdmin(request: Request, sessionId: string): TokenPayload {
+  const payload = requireAdmin(request);
+  if (payload.sessionId !== sessionId) {
+    throw new Error('Forbidden: session mismatch');
+  }
+  return payload;
+}
+
 export function requireJudge(request: Request): TokenPayload {
   const payload = validateAndExtractToken(request);
   if (!payload) {
@@ -44,4 +56,13 @@ export function requireJudge(request: Request): TokenPayload {
   if (payload.role === 'judge') return payload;
   if (payload.role === 'admin' && payload.judgeId) return payload;
   throw new Error('Unauthorized: Judge access required');
+}
+
+/** requireJudge + enforces token.sessionId === sessionId */
+export function requireSessionJudge(request: Request, sessionId: string): TokenPayload {
+  const payload = requireJudge(request);
+  if (payload.sessionId !== sessionId) {
+    throw new Error('Forbidden: session mismatch');
+  }
+  return payload;
 }
