@@ -81,7 +81,7 @@ export async function GET(
         return calculateDancerResults(dancer.id, dancer.dancer_number, dancer.name, dancerScores);
       });
 
-      results.sort((a, b) => (b.olympicAverage ?? 0) - (a.olympicAverage ?? 0));
+      results.sort((a, b) => a.dancerNumber - b.dancerNumber);
 
       if (format === 'json') {
         return NextResponse.json(results);
@@ -125,7 +125,7 @@ export async function GET(
     }
 
     const aggregatedResults = calculateAggregatedResults(dancers || [], allScores, groupMaterialMap);
-    aggregatedResults.sort((a, b) => (b.olympicAverage ?? 0) - (a.olympicAverage ?? 0));
+    aggregatedResults.sort((a, b) => a.dancerNumber - b.dancerNumber);
 
     if (format === 'json') {
       return NextResponse.json(aggregatedResults);
