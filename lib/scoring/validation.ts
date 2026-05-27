@@ -1,6 +1,12 @@
 import { ScoreState, SCORE_CATEGORIES } from '@/lib/database.types';
 
+/**
+ * A row is "complete" for submission purposes if it's either fully scored
+ * across all categories OR explicitly skipped. The submit gate uses this
+ * to decide whether the judge can press Submit Scores.
+ */
 export function isScoreComplete(scores: ScoreState): boolean {
+  if (scores.is_skipped) return true;
   return SCORE_CATEGORIES.every(cat => scores[cat] !== undefined && scores[cat] !== null);
 }
 

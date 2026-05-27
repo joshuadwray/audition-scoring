@@ -60,8 +60,11 @@ export function calculateDancerResults(
   dancerName: string,
   scores: Score[]
 ): DancerResult {
-  const judgeIds = new Set(scores.map(s => s.judge_id));
-  const judgeCount = judgeIds.size;
+  // Only count judges who actually scored this dancer. Judges who submitted
+  // a skip row (is_skipped=true, all categories NULL) are excluded so they
+  // don't inflate the denominator or push us over the Olympic threshold.
+  const scoringJudgeIds = new Set(scores.filter(s => !s.is_skipped).map(s => s.judge_id));
+  const judgeCount = scoringJudgeIds.size;
 
   const categoryAverages: Record<string, number | null> = {};
 
@@ -73,10 +76,10 @@ export function calculateDancerResults(
     categoryAverages[category] = calculateSimpleAverage(categoryScores);
   }
 
-  // Per-judge total scores: for each judge, sum their 5 category scores
+  // Per-judge total scores: for each non-skipping judge, sum their categories
   const perJudgeTotals: number[] = [];
-  for (const judgeId of judgeIds) {
-    const judgeScores = scores.filter(s => s.judge_id === judgeId);
+  for (const judgeId of scoringJudgeIds) {
+    const judgeScores = scores.filter(s => s.judge_id === judgeId && !s.is_skipped);
     let judgeTotal = 0;
     let hasAny = false;
     for (const category of SCORE_CATEGORIES) {
@@ -165,18 +168,19 @@ export function calculateAggregatedResults(
       : null;
 
     // Independent olympic average: for each judge, sum their per-material total scores
-    // Then olympic average those cross-material judge totals
-    const allJudgeIds = new Set<string>();
+    // Then olympic average those cross-material judge totals.
+    // Only count judges who actually scored at least one non-skip row.
+    const scoringJudgeIds = new Set<string>();
     for (const score of dancerScores) {
-      allJudgeIds.add(score.judge_id);
+      if (!score.is_skipped) scoringJudgeIds.add(score.judge_id);
     }
 
     const crossMaterialJudgeTotals: number[] = [];
-    for (const judgeId of allJudgeIds) {
+    for (const judgeId of scoringJudgeIds) {
       let judgeCrossTotal = 0;
       let hasAny = false;
       for (const [, { scores: matScores }] of scoresByMaterial) {
-        const judgeMatScores = matScores.filter(s => s.judge_id === judgeId);
+        const judgeMatScores = matScores.filter(s => s.judge_id === judgeId && !s.is_skipped);
         for (const category of SCORE_CATEGORIES) {
           for (const s of judgeMatScores) {
             const val = s[category];
@@ -193,7 +197,7 @@ export function calculateAggregatedResults(
     }
 
     const olympicAverage = calculateOlympicAverage(crossMaterialJudgeTotals);
-    const judgeCount = allJudgeIds.size;
+    const judgeCount = scoringJudgeIds.size;
 
     return {
       dancerId: dancer.id,

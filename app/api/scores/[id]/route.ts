@@ -90,14 +90,41 @@ export async function PATCH(
 
     const body = await request.json();
 
-    // Allow-list: only score category fields may be updated
+    // Allow-list: category fields and the skip flag.
+    // Skip-related transitions are atomic: toggling is_skipped also clears
+    // (or requires) all category fields, since the DB CHECK constraint
+    // forbids partial states.
     const safeUpdates: Record<string, unknown> = {};
-    for (const cat of SCORE_CATEGORIES) {
-      if (body[cat] !== undefined) {
-        if (!isValidScore(body[cat])) {
-          return NextResponse.json({ error: `Invalid score for ${cat}: must be 1-5 in 0.5 increments` }, { status: 400 });
+
+    if (body.is_skipped !== undefined) {
+      const skipping = body.is_skipped === true;
+      safeUpdates.is_skipped = skipping;
+      if (skipping) {
+        // Skip → wipe all categories to satisfy XOR constraint
+        for (const cat of SCORE_CATEGORIES) {
+          safeUpdates[cat] = null;
         }
-        safeUpdates[cat] = body[cat];
+      } else {
+        // Un-skip → caller must supply all categories in the same request
+        for (const cat of SCORE_CATEGORIES) {
+          if (body[cat] === undefined || body[cat] === null || !isValidScore(body[cat])) {
+            return NextResponse.json(
+              { error: 'Un-skipping requires all categories supplied with valid scores' },
+              { status: 400 }
+            );
+          }
+          safeUpdates[cat] = body[cat];
+        }
+      }
+    } else {
+      // Plain category edit (no skip change)
+      for (const cat of SCORE_CATEGORIES) {
+        if (body[cat] !== undefined) {
+          if (!isValidScore(body[cat])) {
+            return NextResponse.json({ error: `Invalid score for ${cat}: must be 1-5 in 0.5 increments` }, { status: 400 });
+          }
+          safeUpdates[cat] = body[cat];
+        }
       }
     }
 

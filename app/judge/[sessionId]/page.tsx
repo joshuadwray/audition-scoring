@@ -172,6 +172,14 @@ export default function JudgeScoringPage() {
         return;
       }
 
+      // 'S' key to toggle skip on focused tile
+      if ((e.key === 's' || e.key === 'S') && focusedTileIndex !== null) {
+        e.preventDefault();
+        const dancer = dancers[focusedTileIndex];
+        if (dancer) handleToggleSkip(dancer.id);
+        return;
+      }
+
       // Number keys 1-5 for scoring
       const num = parseInt(e.key, 10);
       if (num >= 1 && num <= 5 && focusedTileIndex !== null && focusedCategoryIndex !== null) {
@@ -269,8 +277,23 @@ export default function JudgeScoringPage() {
       [dancerId]: {
         ...prev[dancerId],
         [category]: value,
+        // Setting any score implicitly un-skips (defensive — UI already gates this)
+        is_skipped: false,
       },
     }));
+  };
+
+  const handleToggleSkip = (dancerId: string) => {
+    setLocalScores(prev => {
+      const current = prev[dancerId] || {};
+      const wasSkipped = current.is_skipped === true;
+      if (wasSkipped) {
+        // Unskip: leave categories cleared so judge re-enters fresh
+        return { ...prev, [dancerId]: { is_skipped: false } };
+      }
+      // Skip: wipe any partial scores
+      return { ...prev, [dancerId]: { is_skipped: true } };
+    });
   };
 
   const handleSubmit = async () => {
@@ -399,6 +422,7 @@ export default function JudgeScoringPage() {
                     dancer={dancer}
                     scores={localScores[dancer.id] || {}}
                     onScoreChange={(category, value) => handleScoreChange(dancer.id, category, value)}
+                    onToggleSkip={() => handleToggleSkip(dancer.id)}
                     isLocked={isLocked}
                     compact={isWide}
                     isFocused={focusedTileIndex === index}

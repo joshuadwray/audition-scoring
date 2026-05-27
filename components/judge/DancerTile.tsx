@@ -8,6 +8,9 @@ interface DancerTileProps {
   dancer: { id: string; dancer_number: number; name: string };
   scores: ScoreState;
   onScoreChange: (category: string, value: number) => void;
+  /** Optional skip toggle. If omitted, the Skip pill is not rendered (e.g. in
+   * legacy admin contexts where skip isn't wired up yet). */
+  onToggleSkip?: () => void;
   isLocked?: boolean;
   compact?: boolean;
   materialLabel?: string;
@@ -17,11 +20,24 @@ interface DancerTileProps {
   onFocusTile?: () => void;
 }
 
-export default function DancerTile({ dancer, scores, onScoreChange, isLocked, compact, materialLabel, materialColorClasses, isFocused, focusedCategoryIndex, onFocusTile }: DancerTileProps) {
+export default function DancerTile({
+  dancer,
+  scores,
+  onScoreChange,
+  onToggleSkip,
+  isLocked,
+  compact,
+  materialLabel,
+  materialColorClasses,
+  isFocused,
+  focusedCategoryIndex,
+  onFocusTile,
+}: DancerTileProps) {
+  const isSkipped = scores.is_skipped === true;
   const scored = countScoredCategories(scores);
   const totalCategories = SCORE_CATEGORIES.length;
-  const isComplete = scored === totalCategories;
-  const isPartial = scored > 0 && scored < totalCategories;
+  const isComplete = !isSkipped && scored === totalCategories;
+  const isPartial = !isSkipped && scored > 0 && scored < totalCategories;
 
   // Calculate running total of scored categories
   const runningTotal = SCORE_CATEGORIES.reduce((sum, cat) => {
@@ -29,21 +45,23 @@ export default function DancerTile({ dancer, scores, onScoreChange, isLocked, co
     return val != null ? sum + val : sum;
   }, 0);
 
-  const borderColor = isComplete
-    ? 'border-green-500'
-    : isPartial
-      ? 'border-orange-400'
-      : 'border-gray-200';
+  const borderColor = isSkipped
+    ? 'border-gray-300'
+    : isComplete
+      ? 'border-green-500'
+      : isPartial
+        ? 'border-orange-400'
+        : 'border-gray-200';
 
   return (
     <div
-      className={`bg-white border-2 ${borderColor} rounded-lg ${compact ? 'p-3' : 'p-4'} transition-colors ${isFocused ? 'ring-2 ring-blue-400' : ''}`}
+      className={`bg-white border-2 ${borderColor} rounded-lg ${compact ? 'p-3' : 'p-4'} transition-colors ${isFocused ? 'ring-2 ring-blue-400' : ''} ${isSkipped ? 'bg-gray-50' : ''}`}
       onClick={onFocusTile}
       tabIndex={onFocusTile ? 0 : undefined}
     >
       <div className="mb-3 pb-2 border-b-2 border-gray-100">
-        <div className="flex justify-between items-center">
-          <div className="flex items-center gap-2 min-w-0">
+        <div className="flex justify-between items-center gap-2">
+          <div className={`flex items-center gap-2 min-w-0 ${isSkipped ? 'opacity-60' : ''}`}>
             <span className={`font-bold text-gray-900 ${compact ? 'text-lg' : 'text-xl'}`}>
               #{dancer.dancer_number}
             </span>
@@ -56,13 +74,33 @@ export default function DancerTile({ dancer, scores, onScoreChange, isLocked, co
               </span>
             )}
           </div>
-          <span className={`font-semibold text-xs whitespace-nowrap ${
-            isComplete ? 'text-green-600' : isPartial ? 'text-orange-500' : 'text-gray-400'
-          }`}>
-            {scored}/{totalCategories}{isComplete ? ' \u2713' : ''}
-          </span>
+          <div className="flex items-center gap-2 shrink-0">
+            {isSkipped ? (
+              <span className="px-1.5 py-0.5 bg-gray-200 text-gray-700 text-xs font-medium rounded">
+                Skipped
+              </span>
+            ) : (
+              <span className={`font-semibold text-xs whitespace-nowrap ${
+                isComplete ? 'text-green-600' : isPartial ? 'text-orange-500' : 'text-gray-400'
+              }`}>
+                {scored}/{totalCategories}{isComplete ? ' ✓' : ''}
+              </span>
+            )}
+            {onToggleSkip && !isLocked && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onToggleSkip(); }}
+                className={`text-[10px] px-1.5 py-0.5 rounded transition-colors ${
+                  isSkipped
+                    ? 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+                    : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                {isSkipped ? 'Unskip' : 'Skip'}
+              </button>
+            )}
+          </div>
         </div>
-        {scored > 0 && (
+        {!isSkipped && scored > 0 && (
           <div className={`mt-1.5 text-center py-1 rounded-md font-bold ${compact ? 'text-lg' : 'text-xl'} ${
             isComplete
               ? 'bg-green-50 text-green-700'
@@ -73,18 +111,20 @@ export default function DancerTile({ dancer, scores, onScoreChange, isLocked, co
         )}
       </div>
 
-      {SCORE_CATEGORIES.map((cat, catIndex) => (
-        <CategoryScorer
-          key={cat}
-          label={CATEGORY_LABELS[cat]}
-          shortLabel={CATEGORY_SHORT_LABELS[cat]}
-          value={scores[cat]}
-          onChange={value => onScoreChange(cat, value)}
-          isLocked={isLocked}
-          compact={compact}
-          isFocused={isFocused && focusedCategoryIndex === catIndex}
-        />
-      ))}
+      <div className={isSkipped ? 'opacity-40 pointer-events-none' : ''}>
+        {SCORE_CATEGORIES.map((cat, catIndex) => (
+          <CategoryScorer
+            key={cat}
+            label={CATEGORY_LABELS[cat]}
+            shortLabel={CATEGORY_SHORT_LABELS[cat]}
+            value={scores[cat]}
+            onChange={value => onScoreChange(cat, value)}
+            isLocked={isLocked || isSkipped}
+            compact={compact}
+            isFocused={isFocused && focusedCategoryIndex === catIndex && !isSkipped}
+          />
+        ))}
+      </div>
     </div>
   );
 }

@@ -73,6 +73,14 @@ sessions, materials, dancers, judges, dancer_groups, scores, score_submissions, 
 - Judges created before this migration have NULL `judge_pin_encrypted` — reveal endpoint returns 410 + `legacy: true`, admin UI offers Reset PIN instead
 - **Migration file:** `supabase/migrations/011_judge_pin_encrypted.sql` (must be applied to Supabase)
 
+## Database Skip Dancer (migration 012)
+- `scores.is_skipped` — BOOLEAN NOT NULL DEFAULT FALSE
+- 4 category columns made NULLABLE (only nullable when `is_skipped=true`)
+- New CHECK constraint `scores_skip_xor_complete_check`: row is valid only if fully scored XOR fully skipped — partial rows rejected at DB level
+- Scoring math in `lib/scoring/olympic-average.ts` filters skipped rows from both per-judge totals and the effective judge count (so Olympic-vs-simple threshold uses only judges who actually scored)
+- Submit endpoint accepts `is_skipped: true` per dancer; PATCH accepts skip toggle (un-skipping requires all categories in same request)
+- **Migration file:** `supabase/migrations/012_skip_dancer.sql` (must be applied to Supabase)
+
 ## Group Template/Instance Model
 - **Template** (`material_id = NULL`): Created in Setup tab, reusable. Contains group_number and dancer_ids.
 - **Instance** (`material_id` set): Created at push time by cloning template. Linked to scores.
@@ -161,6 +169,7 @@ supabase/
   migrations/007_add_retracted_status.sql            # Add 'retracted' status for group instances (unpush)
   migrations/010_four_categories.sql                 # Drop 5 old categories, add 4 new ones (truncates scores)
   migrations/011_judge_pin_encrypted.sql              # Add judge_pin_encrypted column (AES-GCM ciphertext) for admin PIN reveal
+  migrations/012_skip_dancer.sql                       # Add is_skipped + make categories nullable; XOR CHECK constraint
 ```
 
 ## Next.js 15 Notes
@@ -219,7 +228,8 @@ supabase/
 - **DancerTile running total**: Full-width colored bar below header shows running score total out of 25. Blue while in-progress, green when complete. Hidden when no categories scored.
 - **Retract API** (`/api/groups/[id]/retract`): Sets instance status to 'retracted'. Optionally deletes associated scores. ProgressMonitor shows Retract button on active instances with two-step confirmation. Judge realtime subscription detects retraction, clears active group, shows banner.
 - **AdHocGroupCreator auto-push**: Creates template then immediately pushes with selected material in one flow. Button reads "Create & Push Group N". Material selection is required before create.
-- **Keyboard navigation**: Forms (landing, new session, manual dancer add) submit on Enter. Judge scoring tiles support arrow keys (Left/Right = tile, Up/Down = category) + number keys 1-5 (set score, auto-advance; tap same number twice = half-score toggle, no advance). Escape clears focus. Keyboard inactive when typing in inputs. State: `focusedTileIndex`, `focusedCategoryIndex`. DancerTile props: `isFocused`, `focusedCategoryIndex`, `onFocusTile`. CategoryScorer prop: `isFocused`. Both judge page and admin Judge tab have identical keyboard handlers.
+- **Keyboard navigation**: Forms (landing, new session, manual dancer add) submit on Enter. Judge scoring tiles support arrow keys (Left/Right = tile, Up/Down = category) + number keys 1-5 (set score, auto-advance; tap same number twice = half-score toggle, no advance) + **S key (toggle skip on focused tile)**. Escape clears focus. Keyboard inactive when typing in inputs. State: `focusedTileIndex`, `focusedCategoryIndex`. DancerTile props: `isFocused`, `focusedCategoryIndex`, `onFocusTile`, `onToggleSkip`. CategoryScorer prop: `isFocused`. Both judge page and admin Judge tab have identical keyboard handlers.
+- **Skip dancer**: Judges can skip scoring an individual dancer via a "Skip" pill in the tile header (or the S key). Skipped tiles dim, hide the category scorers, and count as "complete" for submission gating. Tap "Unskip" to restore the scorers. Skipped rows submit with `is_skipped=true` and NULL categories; scoring math excludes them from both per-judge totals and the effective judge count for the Olympic-vs-simple threshold. Editable from My Scores too.
 
 ## Environment Variables
 `.env.local` is configured and working locally. Vercel env vars are configured in the Vercel dashboard.

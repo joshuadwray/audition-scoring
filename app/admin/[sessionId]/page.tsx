@@ -567,6 +567,14 @@ export default function AdminDashboard() {
         return;
       }
 
+      // 'S' key to toggle skip on focused tile
+      if ((e.key === 's' || e.key === 'S') && judgeFocusedTileIndex !== null) {
+        e.preventDefault();
+        const dancer = judgeDancers[judgeFocusedTileIndex];
+        if (dancer) handleJudgeToggleSkip(dancer.id);
+        return;
+      }
+
       // Number keys 1-5 for scoring
       const num = parseInt(e.key, 10);
       if (num >= 1 && num <= 5 && judgeFocusedTileIndex !== null && judgeFocusedCategoryIndex !== null) {
@@ -618,8 +626,20 @@ export default function AdminDashboard() {
       [dancerId]: {
         ...prev[dancerId],
         [category]: value,
+        is_skipped: false,
       },
     }));
+  };
+
+  const handleJudgeToggleSkip = (dancerId: string) => {
+    setJudgeLocalScores(prev => {
+      const current = prev[dancerId] || {};
+      const wasSkipped = current.is_skipped === true;
+      if (wasSkipped) {
+        return { ...prev, [dancerId]: { is_skipped: false } };
+      }
+      return { ...prev, [dancerId]: { is_skipped: true } };
+    });
   };
 
   const handleJudgeSubmit = async () => {
@@ -1088,6 +1108,7 @@ export default function AdminDashboard() {
                             dancer={dancer}
                             scores={judgeLocalScores[dancer.id] || {}}
                             onScoreChange={(category, value) => handleJudgeScoreChange(dancer.id, category, value)}
+                            onToggleSkip={() => handleJudgeToggleSkip(dancer.id)}
                             isLocked={session?.is_locked || false}
                             compact={isWide}
                             isFocused={judgeFocusedTileIndex === index}

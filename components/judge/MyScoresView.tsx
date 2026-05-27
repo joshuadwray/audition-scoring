@@ -152,6 +152,7 @@ export default function MyScoresView({ sessionId, judgeId, token, isLocked, canC
             for (const cat of SCORE_CATEGORIES) {
               scoreState[cat] = score[cat] ?? undefined;
             }
+            scoreState.is_skipped = score.is_skipped === true;
           }
 
           const key = `${dancerId}_${g.id}`;
@@ -206,13 +207,17 @@ export default function MyScoresView({ sessionId, judgeId, token, isLocked, canC
     return keys;
   }, [dancerEntries]);
 
-  // Track dirty state
+  // Track dirty state — categories OR the skip flag
   const dirtyKeys = useMemo(() => {
     const keys: string[] = [];
     for (const { key } of allScoreKeys) {
       const edited = editedScores[key];
       const saved = savedScores[key];
       if (!edited || !saved) continue;
+      if ((edited.is_skipped === true) !== (saved.is_skipped === true)) {
+        keys.push(key);
+        continue;
+      }
       for (const cat of SCORE_CATEGORIES) {
         if (edited[cat] !== saved[cat]) {
           keys.push(key);
@@ -238,8 +243,24 @@ export default function MyScoresView({ sessionId, judgeId, token, isLocked, canC
       [key]: {
         ...prev[key],
         [category]: value,
+        // Editing any score implicitly un-skips
+        is_skipped: false,
       },
     }));
+  };
+
+  const handleToggleSkip = (dancerId: string, groupId: string) => {
+    if (isLocked) return;
+    const key = `${dancerId}_${groupId}`;
+    setEditedScores(prev => {
+      const current = prev[key] || {};
+      const wasSkipped = current.is_skipped === true;
+      if (wasSkipped) {
+        // Unskip: clear categories so judge re-enters fresh values
+        return { ...prev, [key]: { is_skipped: false } };
+      }
+      return { ...prev, [key]: { is_skipped: true } };
+    });
   };
 
   const handlePinChange = async () => {
@@ -303,9 +324,22 @@ export default function MyScoresView({ sessionId, judgeId, token, isLocked, canC
       const saved = savedScores[key];
       const updates: Partial<ScoreState> = {};
 
-      for (const cat of SCORE_CATEGORIES) {
-        if (edited[cat] !== saved[cat]) {
-          updates[cat] = edited[cat];
+      const skipChanged = (edited.is_skipped === true) !== (saved.is_skipped === true);
+
+      if (skipChanged) {
+        // Skip transitions are atomic — server requires all categories when
+        // un-skipping. Send the whole picture either way.
+        updates.is_skipped = edited.is_skipped === true;
+        if (!edited.is_skipped) {
+          for (const cat of SCORE_CATEGORIES) {
+            updates[cat] = edited[cat];
+          }
+        }
+      } else {
+        for (const cat of SCORE_CATEGORIES) {
+          if (edited[cat] !== saved[cat]) {
+            updates[cat] = edited[cat];
+          }
         }
       }
 
@@ -527,6 +561,7 @@ export default function MyScoresView({ sessionId, judgeId, token, isLocked, canC
                             dancer={entry.dancer}
                             scores={editedScores[key] || {}}
                             onScoreChange={(category, value) => handleScoreChange(entry.dancer.id, mat.groupId, category, value)}
+                            onToggleSkip={() => handleToggleSkip(entry.dancer.id, mat.groupId)}
                             isLocked={isLocked}
                             compact={isWide}
                             materialLabel={mat.materialName}

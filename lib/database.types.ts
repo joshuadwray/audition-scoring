@@ -92,6 +92,7 @@ export interface Score {
   technical_execution: number | null;
   musicality_timing: number | null;
   embodiment_of_style: number | null;
+  is_skipped: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -117,6 +118,10 @@ export interface ScoreState {
   technical_execution?: number;
   musicality_timing?: number;
   embodiment_of_style?: number;
+  /** UI-side flag for the skip toggle. When true, category values are cleared
+   * and the row submits with all categories NULL. Separate from DB column
+   * naming since this is in-progress draft state, not a row. */
+  is_skipped?: boolean;
 }
 
 export interface TokenPayload {

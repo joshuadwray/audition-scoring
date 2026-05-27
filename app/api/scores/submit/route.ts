@@ -45,9 +45,21 @@ export async function POST(request: Request) {
       if (!score.dancerId) {
         return NextResponse.json({ error: 'Each score must have a dancerId' }, { status: 400 });
       }
-      for (const cat of SCORE_CATEGORIES) {
-        if (!score[cat] || !isValidScore(score[cat])) {
-          return NextResponse.json({ error: `Invalid score for ${cat}: must be 1-5 in 0.5 increments` }, { status: 400 });
+      // Skipped rows: every category must be absent. Scored rows: every
+      // category must be a valid value. The DB CHECK constraint enforces the
+      // same invariant; we check here too so we can return a 400 with a
+      // useful message instead of a generic 500.
+      if (score.is_skipped) {
+        for (const cat of SCORE_CATEGORIES) {
+          if (score[cat] !== undefined && score[cat] !== null) {
+            return NextResponse.json({ error: 'Skipped rows must not include category values' }, { status: 400 });
+          }
+        }
+      } else {
+        for (const cat of SCORE_CATEGORIES) {
+          if (!score[cat] || !isValidScore(score[cat])) {
+            return NextResponse.json({ error: `Invalid score for ${cat}: must be 1-5 in 0.5 increments` }, { status: 400 });
+          }
         }
       }
     }
@@ -65,13 +77,16 @@ export async function POST(request: Request) {
     }
 
     const scoreRows = scores.map((s: Record<string, unknown>) => {
+      const skipped = s.is_skipped === true;
       const row: Record<string, unknown> = {
         group_id: groupId,
         judge_id: judgeId,
         dancer_id: s.dancerId,
+        is_skipped: skipped,
       };
+      // Categories are NULL on skipped rows (DB constraint enforces this)
       for (const cat of SCORE_CATEGORIES) {
-        row[cat] = s[cat];
+        row[cat] = skipped ? null : s[cat];
       }
       return row;
     });
