@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { requireJudge } from '@/lib/auth/session';
+import { encryptPin } from '@/lib/crypto/pin-encryption';
 
 export async function PATCH(
   request: Request,
@@ -49,9 +50,14 @@ export async function PATCH(
     }
 
     const pinHash = await bcrypt.hash(newPin, 12);
+    const pinEncrypted = encryptPin(newPin);
     const { error } = await supabaseAdmin
       .from('judge_secrets')
-      .update({ judge_pin_hash: pinHash, updated_at: new Date().toISOString() })
+      .update({
+        judge_pin_hash: pinHash,
+        judge_pin_encrypted: pinEncrypted,
+        updated_at: new Date().toISOString(),
+      })
       .eq('judge_id', id);
 
     if (error) {

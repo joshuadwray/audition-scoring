@@ -51,7 +51,7 @@ export interface AggregatedDancerResult {
 /**
  * Calculate results for a single dancer within a single material context.
  * - Category averages: simple average across judges
- * - Total Score: simple average of per-judge sums (each judge's 5 categories summed)
+ * - Total Score: simple average of per-judge sums (each judge's category scores summed)
  * - Olympic Average: olympic average of per-judge sums
  */
 export function calculateDancerResults(

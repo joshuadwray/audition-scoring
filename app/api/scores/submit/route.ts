@@ -64,16 +64,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Scores already submitted for this group' }, { status: 409 });
     }
 
-    const scoreRows = scores.map((s: Record<string, unknown>) => ({
-      group_id: groupId,
-      judge_id: judgeId,
-      dancer_id: s.dancerId,
-      technique: s.technique,
-      musicality: s.musicality,
-      expression: s.expression,
-      timing: s.timing,
-      presentation: s.presentation,
-    }));
+    const scoreRows = scores.map((s: Record<string, unknown>) => {
+      const row: Record<string, unknown> = {
+        group_id: groupId,
+        judge_id: judgeId,
+        dancer_id: s.dancerId,
+      };
+      for (const cat of SCORE_CATEGORIES) {
+        row[cat] = s[cat];
+      }
+      return row;
+    });
 
     const { error: insertError } = await supabaseAdmin.from('scores').insert(scoreRows);
 

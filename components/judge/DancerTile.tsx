@@ -1,6 +1,6 @@
 'use client';
 
-import { ScoreState, SCORE_CATEGORIES, CATEGORY_LABELS, CATEGORY_SHORT_LABELS } from '@/lib/database.types';
+import { ScoreState, SCORE_CATEGORIES, CATEGORY_LABELS, CATEGORY_SHORT_LABELS, MAX_TOTAL_SCORE } from '@/lib/database.types';
 import { countScoredCategories } from '@/lib/scoring/validation';
 import CategoryScorer from './CategoryScorer';
 
@@ -19,8 +19,9 @@ interface DancerTileProps {
 
 export default function DancerTile({ dancer, scores, onScoreChange, isLocked, compact, materialLabel, materialColorClasses, isFocused, focusedCategoryIndex, onFocusTile }: DancerTileProps) {
   const scored = countScoredCategories(scores);
-  const isComplete = scored === 5;
-  const isPartial = scored > 0 && scored < 5;
+  const totalCategories = SCORE_CATEGORIES.length;
+  const isComplete = scored === totalCategories;
+  const isPartial = scored > 0 && scored < totalCategories;
 
   // Calculate running total of scored categories
   const runningTotal = SCORE_CATEGORIES.reduce((sum, cat) => {
@@ -58,7 +59,7 @@ export default function DancerTile({ dancer, scores, onScoreChange, isLocked, co
           <span className={`font-semibold text-xs whitespace-nowrap ${
             isComplete ? 'text-green-600' : isPartial ? 'text-orange-500' : 'text-gray-400'
           }`}>
-            {scored}/5{isComplete ? ' \u2713' : ''}
+            {scored}/{totalCategories}{isComplete ? ' \u2713' : ''}
           </span>
         </div>
         {scored > 0 && (
@@ -67,7 +68,7 @@ export default function DancerTile({ dancer, scores, onScoreChange, isLocked, co
               ? 'bg-green-50 text-green-700'
               : 'bg-blue-50 text-blue-700'
           }`}>
-            {runningTotal}<span className={`font-normal ${compact ? 'text-xs' : 'text-sm'} ${isComplete ? 'text-green-500' : 'text-blue-400'}`}> / 25</span>
+            {runningTotal}<span className={`font-normal ${compact ? 'text-xs' : 'text-sm'} ${isComplete ? 'text-green-500' : 'text-blue-400'}`}> / {MAX_TOTAL_SCORE}</span>
           </div>
         )}
       </div>

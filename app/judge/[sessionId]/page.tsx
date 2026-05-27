@@ -167,7 +167,7 @@ export default function JudgeScoringPage() {
         setFocusedCategoryIndex(prev => {
           if (prev === null) return 0;
           const next = e.key === 'ArrowUp' ? prev - 1 : prev + 1;
-          return Math.max(0, Math.min(4, next));
+          return Math.max(0, Math.min(SCORE_CATEGORIES.length - 1, next));
         });
         return;
       }
@@ -199,7 +199,7 @@ export default function JudgeScoringPage() {
         }
 
         if (shouldAdvance) {
-          if (focusedCategoryIndex < 4) {
+          if (focusedCategoryIndex < SCORE_CATEGORIES.length - 1) {
             setFocusedCategoryIndex(focusedCategoryIndex + 1);
           } else if (focusedTileIndex < dancers.length - 1) {
             const nextTile = focusedTileIndex + 1;

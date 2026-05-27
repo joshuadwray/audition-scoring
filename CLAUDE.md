@@ -60,6 +60,19 @@ sessions, materials, dancers, judges, dancer_groups, scores, score_submissions, 
 - Retracted instances are hidden from judge view, scores optionally deleted
 - **Migration file:** `supabase/migrations/007_add_retracted_status.sql` (must be applied to Supabase)
 
+## Database Four Categories (migration 010)
+- Old 5 columns dropped: `technique`, `musicality`, `expression`, `timing`, `presentation`
+- New 4 columns: `performance_quality`, `technical_execution`, `musicality_timing`, `embodiment_of_style` (NUMERIC(2,1) NOT NULL, 0.5 increments 1-5)
+- Migration TRUNCATEs `scores` + `score_submissions` and resets any `dancer_groups.status='completed'` instances back to 'active' (orphaned by score wipe)
+- **Migration file:** `supabase/migrations/010_four_categories.sql` (must be applied to Supabase). Destroys all existing scores — confirmed safe at migration time.
+
+## Database Encrypted PIN Storage (migration 011)
+- `judge_secrets.judge_pin_encrypted` — TEXT, nullable, AES-256-GCM ciphertext (base64-encoded `iv || ciphertext || authTag`)
+- Coexists with `judge_pin_hash` (bcrypt) — hash is still source of truth for login; encrypted copy exists only so admins can reveal PINs to redistribute them
+- Encryption key from `PIN_ENCRYPTION_KEY` env var (32-byte hex). DB leak alone is useless; attacker also needs the env var
+- Judges created before this migration have NULL `judge_pin_encrypted` — reveal endpoint returns 410 + `legacy: true`, admin UI offers Reset PIN instead
+- **Migration file:** `supabase/migrations/011_judge_pin_encrypted.sql` (must be applied to Supabase)
+
 ## Group Template/Instance Model
 - **Template** (`material_id = NULL`): Created in Setup tab, reusable. Contains group_number and dancer_ids.
 - **Instance** (`material_id` set): Created at push time by cloning template. Linked to scores.
@@ -67,8 +80,8 @@ sessions, materials, dancers, judges, dancer_groups, scores, score_submissions, 
 - Scores link to instance rows, so per-material results work as before.
 - Setup tab shows only templates. Monitor tab shows templates with inline material push dropdown and collapsible instance history.
 
-## Scoring Categories (5)
-technique, musicality, expression, timing, presentation (each 1-5 in 0.5 increments, NUMERIC(2,1))
+## Scoring Categories (4)
+performance_quality, technical_execution, musicality_timing, embodiment_of_style (each 1-5 in 0.5 increments, NUMERIC(2,1)). Total score range: 4-20. `MAX_TOTAL_SCORE` constant exported from `lib/database.types.ts` (= `SCORE_CATEGORIES.length * 5`). Most code iterates `SCORE_CATEGORIES`, so future category-count changes only require touching the constants in `lib/database.types.ts` plus the migration.
 
 ## Two User Roles (+ Admin-as-Judge)
 - **Admin**: Create sessions (with session code), import dancers (with grade), manage judges/materials, build groups (no material), archive groups (soft delete), push groups (with material), monitor progress, view results, export CSV, lock/unlock sessions, delete dancers, join as judge
@@ -93,7 +106,10 @@ app/
     sessions/[id]/route.ts             # GET (supports UUID or session_code lookup), PATCH, DELETE
     sessions/[id]/lock/route.ts        # POST (lock), DELETE (unlock)
     dancers/route.ts                    # GET, POST (bulk CSV + single + _createMaterial), DELETE (with force option)
-    judges/route.ts                     # GET, POST (supports isAdminJudge flag), DELETE
+    judges/route.ts                     # GET, POST (supports isAdminJudge flag, writes hash + encrypted PIN), DELETE
+    judges/[id]/pin/route.ts            # PATCH (judge self-PIN-change, writes hash + encrypted)
+    judges/[id]/reveal-pin/route.ts     # POST (admin-only PIN reveal; audit-logged; 30/min/session throttle; 410 if legacy)
+    judges/[id]/reset-pin/route.ts      # POST (admin regenerates judge PIN, returns plaintext once)
     groups/route.ts                     # GET, POST (materialId optional — null = template), DELETE (soft archive)
     groups/[id]/push/route.ts          # POST (clones template as instance with materialId)
     groups/[id]/retract/route.ts       # POST (sets instance status to 'retracted', optionally deletes scores)
@@ -133,6 +149,8 @@ lib/
   scoring/
     olympic-average.ts                 # Olympic avg, simple avg, DancerResult, AggregatedDancerResult, MaterialResult
     validation.ts                      # Score completeness + range validation
+  crypto/
+    pin-encryption.ts                  # AES-256-GCM encrypt/decrypt for judge_pin_encrypted (PIN_ENCRYPTION_KEY env)
 supabase/
   migrations/001_audition_schema.sql   # Full schema, indexes, RLS, functions, realtime
   migrations/002_session_codes_and_admin_judge.sql  # session_code + is_admin_judge columns
@@ -141,6 +159,8 @@ supabase/
   migrations/005_materials_to_groups_and_grade.sql  # Materials to groups, add grade, drop dancer_material_assignments
   migrations/006_group_archive.sql                  # Add is_archived to dancer_groups for soft delete
   migrations/007_add_retracted_status.sql            # Add 'retracted' status for group instances (unpush)
+  migrations/010_four_categories.sql                 # Drop 5 old categories, add 4 new ones (truncates scores)
+  migrations/011_judge_pin_encrypted.sql              # Add judge_pin_encrypted column (AES-GCM ciphertext) for admin PIN reveal
 ```
 
 ## Next.js 15 Notes
@@ -207,6 +227,7 @@ supabase/
 - NEXT_PUBLIC_SUPABASE_ANON_KEY — **Must be the correct anon/public key from Supabase dashboard** (Settings → API). An incorrect key causes all client-side reads to silently fail ("Invalid API key") while server-side API routes still work.
 - SUPABASE_SERVICE_ROLE_KEY
 - JWT_SECRET (random 32-byte hex)
+- PIN_ENCRYPTION_KEY (random 32-byte hex, 64 chars) — AES-256-GCM key for encrypting judge PINs at rest; required for admin PIN reveal/reset endpoints. Generate with: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`. Must also be set on Vercel for production reveals to work.
 
 **Important**: `NEXT_PUBLIC_*` vars are inlined into the client JS bundle at build time. After changing them on Vercel, you must **redeploy** (not just restart). The runtime fallback in `layout.tsx` provides a safety net but the correct keys must still be set.
 

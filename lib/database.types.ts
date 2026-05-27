@@ -1,24 +1,31 @@
-export type ScoreCategory = 'technique' | 'musicality' | 'expression' | 'timing' | 'presentation';
+export type ScoreCategory =
+  | 'performance_quality'
+  | 'technical_execution'
+  | 'musicality_timing'
+  | 'embodiment_of_style';
 
 export const SCORE_CATEGORIES: ScoreCategory[] = [
-  'technique', 'musicality', 'expression', 'timing', 'presentation'
+  'performance_quality',
+  'technical_execution',
+  'musicality_timing',
+  'embodiment_of_style',
 ];
 
 export const CATEGORY_LABELS: Record<ScoreCategory, string> = {
-  technique: 'Technique',
-  musicality: 'Musicality',
-  expression: 'Expression',
-  timing: 'Timing',
-  presentation: 'Presentation',
+  performance_quality: 'Performance Quality',
+  technical_execution: 'Technical Execution',
+  musicality_timing: 'Musicality/Timing',
+  embodiment_of_style: 'Embodiment of Style',
 };
 
 export const CATEGORY_SHORT_LABELS: Record<ScoreCategory, string> = {
-  technique: 'Tech',
-  musicality: 'Music',
-  expression: 'Expr',
-  timing: 'Time',
-  presentation: 'Pres',
+  performance_quality: 'Performance Quality',
+  technical_execution: 'Technical Execution',
+  musicality_timing: 'Musicality/Timing',
+  embodiment_of_style: 'Embodiment of Style',
 };
+
+export const MAX_TOTAL_SCORE = SCORE_CATEGORIES.length * 5;
 
 export interface Session {
   id: string;
@@ -81,11 +88,10 @@ export interface Score {
   group_id: string;
   judge_id: string;
   dancer_id: string;
-  technique: number | null;
-  musicality: number | null;
-  expression: number | null;
-  timing: number | null;
-  presentation: number | null;
+  performance_quality: number | null;
+  technical_execution: number | null;
+  musicality_timing: number | null;
+  embodiment_of_style: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -107,11 +113,10 @@ export interface AdminAction {
 }
 
 export interface ScoreState {
-  technique?: number;
-  musicality?: number;
-  expression?: number;
-  timing?: number;
-  presentation?: number;
+  performance_quality?: number;
+  technical_execution?: number;
+  musicality_timing?: number;
+  embodiment_of_style?: number;
 }
 
 export interface TokenPayload {

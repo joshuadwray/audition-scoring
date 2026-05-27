@@ -36,8 +36,13 @@ export default function AdminDashboard() {
   // Add judge form state
   const [newJudgeName, setNewJudgeName] = useState('');
   const [addingJudge, setAddingJudge] = useState(false);
-  // PIN is shown once at creation time, then hidden
+  // Highlights the just-created judge with their PIN visible in the green card.
+  // The PIN is also recoverable later via the per-judge Show PIN button.
   const [newlyCreatedJudge, setNewlyCreatedJudge] = useState<{ id: string; pin: string; name: string } | null>(null);
+  // Per-judge revealed PIN state (judgeId → plaintext PIN). Cleared on Hide.
+  const [revealedPins, setRevealedPins] = useState<Record<string, string>>({});
+  // Per-judge pending state for reveal/reset buttons
+  const [pinActionPending, setPinActionPending] = useState<Record<string, 'reveal' | 'reset' | null>>({});
 
   // Add material form state
   const [newMaterialName, setNewMaterialName] = useState('');
@@ -201,9 +206,71 @@ export default function AdminDashboard() {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` },
       });
+      // Also clear any revealed PIN for this judge
+      setRevealedPins(prev => {
+        const next = { ...prev };
+        delete next[judgeId];
+        return next;
+      });
       loadJudges();
     } catch {
       alert('Failed to remove judge');
+    }
+  };
+
+  const handleRevealPin = async (judgeId: string) => {
+    setPinActionPending(prev => ({ ...prev, [judgeId]: 'reveal' }));
+    try {
+      const res = await fetch(`/api/judges/${judgeId}/reveal-pin`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.status === 410 && data.legacy) {
+        // Legacy judge with no encrypted PIN — offer reset instead
+        if (confirm('This judge has no recoverable PIN (created before encryption was enabled). Generate a new PIN now?')) {
+          await handleResetPin(judgeId);
+        }
+        return;
+      }
+      if (!res.ok) {
+        alert(data.error || 'Failed to reveal PIN');
+        return;
+      }
+      setRevealedPins(prev => ({ ...prev, [judgeId]: data.pin }));
+    } catch {
+      alert('Failed to reveal PIN');
+    } finally {
+      setPinActionPending(prev => ({ ...prev, [judgeId]: null }));
+    }
+  };
+
+  const handleHidePin = (judgeId: string) => {
+    setRevealedPins(prev => {
+      const next = { ...prev };
+      delete next[judgeId];
+      return next;
+    });
+  };
+
+  const handleResetPin = async (judgeId: string) => {
+    if (!confirm('Generate a new PIN for this judge? The old PIN will stop working immediately.')) return;
+    setPinActionPending(prev => ({ ...prev, [judgeId]: 'reset' }));
+    try {
+      const res = await fetch(`/api/judges/${judgeId}/reset-pin`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || 'Failed to reset PIN');
+        return;
+      }
+      setRevealedPins(prev => ({ ...prev, [judgeId]: data.pin }));
+    } catch {
+      alert('Failed to reset PIN');
+    } finally {
+      setPinActionPending(prev => ({ ...prev, [judgeId]: null }));
     }
   };
 
@@ -495,7 +562,7 @@ export default function AdminDashboard() {
         setJudgeFocusedCategoryIndex(prev => {
           if (prev === null) return 0;
           const next = e.key === 'ArrowUp' ? prev - 1 : prev + 1;
-          return Math.max(0, Math.min(4, next));
+          return Math.max(0, Math.min(SCORE_CATEGORIES.length - 1, next));
         });
         return;
       }
@@ -522,7 +589,7 @@ export default function AdminDashboard() {
         }
 
         if (shouldAdvance) {
-          if (judgeFocusedCategoryIndex < 4) {
+          if (judgeFocusedCategoryIndex < SCORE_CATEGORIES.length - 1) {
             setJudgeFocusedCategoryIndex(judgeFocusedCategoryIndex + 1);
           } else if (judgeFocusedTileIndex < judgeDancers.length - 1) {
             const nextTile = judgeFocusedTileIndex + 1;
@@ -785,7 +852,7 @@ export default function AdminDashboard() {
                     <div>
                       <span className="text-sm font-medium text-green-800">{newlyCreatedJudge.name} added</span>
                       <div className="mt-1">
-                        <span className="text-xs text-green-700">PIN (shown once): </span>
+                        <span className="text-xs text-green-700">PIN: </span>
                         <span className="font-mono font-bold text-green-900 tracking-widest">{newlyCreatedJudge.pin}</span>
                       </div>
                     </div>
@@ -798,32 +865,65 @@ export default function AdminDashboard() {
                       Copy
                     </button>
                   </div>
-                  <p className="mt-1 text-xs text-green-600">Share this PIN with the judge. It will not be shown again.</p>
+                  <p className="mt-1 text-xs text-green-600">Share this PIN with the judge.</p>
                 </div>
               )}
               {judges.length > 0 && (
                 <div className="space-y-2 mb-3">
-                  {judges.map(j => (
-                    <div key={j.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
-                      <div>
-                        <span className="font-medium text-gray-900">{j.name}</span>
-                        {j.is_admin_judge && (
-                          <span className="ml-2 px-1.5 py-0.5 bg-purple-100 text-purple-700 text-xs rounded">Admin</span>
-                        )}
-                        {newlyCreatedJudge?.id === j.id ? (
-                          <span className="ml-3 font-mono text-sm text-green-700 font-bold">PIN: {newlyCreatedJudge.pin}</span>
-                        ) : (
-                          <span className="ml-3 text-sm text-gray-400 italic">PIN hidden</span>
-                        )}
+                  {judges.map(j => {
+                    const revealedPin = revealedPins[j.id] ?? (newlyCreatedJudge?.id === j.id ? newlyCreatedJudge.pin : null);
+                    const pending = pinActionPending[j.id];
+                    return (
+                      <div key={j.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2 gap-2 flex-wrap">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-medium text-gray-900">{j.name}</span>
+                          {j.is_admin_judge && (
+                            <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 text-xs rounded">Admin</span>
+                          )}
+                          {revealedPin ? (
+                            <>
+                              <span className="font-mono text-sm text-green-700 font-bold tracking-widest">PIN: {revealedPin}</span>
+                              <button
+                                onClick={() => navigator.clipboard.writeText(revealedPin)}
+                                className="text-xs px-2 py-0.5 bg-green-100 hover:bg-green-200 text-green-800 rounded transition-colors"
+                              >
+                                Copy
+                              </button>
+                              <button
+                                onClick={() => handleHidePin(j.id)}
+                                className="text-xs px-2 py-0.5 text-gray-500 hover:text-gray-700"
+                              >
+                                Hide
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              onClick={() => handleRevealPin(j.id)}
+                              disabled={pending === 'reveal'}
+                              className="text-xs px-2 py-0.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded transition-colors disabled:opacity-50"
+                            >
+                              {pending === 'reveal' ? 'Revealing…' : 'Show PIN'}
+                            </button>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={() => handleResetPin(j.id)}
+                            disabled={pending === 'reset'}
+                            className="text-xs text-gray-500 hover:text-gray-700 disabled:opacity-50"
+                          >
+                            {pending === 'reset' ? 'Resetting…' : 'Reset PIN'}
+                          </button>
+                          <button
+                            onClick={() => handleRemoveJudge(j.id)}
+                            className="text-red-500 hover:text-red-700 text-sm"
+                          >
+                            Remove
+                          </button>
+                        </div>
                       </div>
-                      <button
-                        onClick={() => handleRemoveJudge(j.id)}
-                        className="text-red-500 hover:text-red-700 text-sm"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
               <div className="flex gap-2">

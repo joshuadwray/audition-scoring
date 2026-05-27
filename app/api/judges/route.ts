@@ -3,6 +3,7 @@ import { randomInt } from 'crypto';
 import bcrypt from 'bcryptjs';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { requireAdmin, createToken } from '@/lib/auth/session';
+import { encryptPin } from '@/lib/crypto/pin-encryption';
 
 function generatePin(): string {
   return String(randomInt(1000, 10000));
@@ -112,11 +113,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Failed to create judge' }, { status: 500 });
     }
 
-    // Hash and store PIN
+    // Hash and store PIN; also store an AES-256-GCM-encrypted copy so an
+    // authenticated admin can retrieve the plaintext via the reveal-pin endpoint.
     const pinHash = await bcrypt.hash(pin, 12);
+    const pinEncrypted = encryptPin(pin);
     const { error: secretError } = await supabaseAdmin
       .from('judge_secrets')
-      .insert({ judge_id: judge.id, judge_pin_hash: pinHash });
+      .insert({
+        judge_id: judge.id,
+        judge_pin_hash: pinHash,
+        judge_pin_encrypted: pinEncrypted,
+      });
 
     if (secretError) {
       await supabaseAdmin.from('judges').delete().eq('id', judge.id);

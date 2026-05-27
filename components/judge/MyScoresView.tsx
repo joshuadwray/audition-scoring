@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase/client';
 import DancerTile from './DancerTile';
 import PINInput from '@/components/shared/PINInput';
 import type { ScoreState, Dancer, Score, ScoreSubmission, DancerGroup, Material } from '@/lib/database.types';
+import { SCORE_CATEGORIES } from '@/lib/database.types';
 import { getMaterialColorByName } from '@/lib/material-colors';
 
 interface MyScoresViewProps {
@@ -146,13 +147,12 @@ export default function MyScoresView({ sessionId, judgeId, token, isLocked, canC
           if (!dancer) continue;
 
           const score = scoreByDancerGroup.get(`${dancerId}_${g.id}`) || null;
-          const scoreState: ScoreState = score ? {
-            technique: score.technique ?? undefined,
-            musicality: score.musicality ?? undefined,
-            expression: score.expression ?? undefined,
-            timing: score.timing ?? undefined,
-            presentation: score.presentation ?? undefined,
-          } : {};
+          const scoreState: ScoreState = {};
+          if (score) {
+            for (const cat of SCORE_CATEGORIES) {
+              scoreState[cat] = score[cat] ?? undefined;
+            }
+          }
 
           const key = `${dancerId}_${g.id}`;
           initialEdited[key] = { ...scoreState };
@@ -209,12 +209,11 @@ export default function MyScoresView({ sessionId, judgeId, token, isLocked, canC
   // Track dirty state
   const dirtyKeys = useMemo(() => {
     const keys: string[] = [];
-    const categories = ['technique', 'musicality', 'expression', 'timing', 'presentation'] as const;
     for (const { key } of allScoreKeys) {
       const edited = editedScores[key];
       const saved = savedScores[key];
       if (!edited || !saved) continue;
-      for (const cat of categories) {
+      for (const cat of SCORE_CATEGORIES) {
         if (edited[cat] !== saved[cat]) {
           keys.push(key);
           break;
@@ -303,9 +302,8 @@ export default function MyScoresView({ sessionId, judgeId, token, isLocked, canC
       const edited = editedScores[key];
       const saved = savedScores[key];
       const updates: Partial<ScoreState> = {};
-      const categories = ['technique', 'musicality', 'expression', 'timing', 'presentation'] as const;
 
-      for (const cat of categories) {
+      for (const cat of SCORE_CATEGORIES) {
         if (edited[cat] !== saved[cat]) {
           updates[cat] = edited[cat];
         }
