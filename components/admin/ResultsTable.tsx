@@ -44,13 +44,21 @@ export default function ResultsTable({ sessionId, token, isLocked, onLockSession
 
     const dancerIds = dancers.map(d => d.id);
 
-    // Get all scores
-    const { data: scores } = await supabase
-      .from('scores')
-      .select('*')
-      .in('dancer_id', dancerIds);
-
-    const allScores = (scores || []) as Score[];
+    // Get all scores (paginated — PostgREST caps each response at 1000 rows)
+    const PAGE_SIZE = 1000;
+    const allScores: Score[] = [];
+    for (let from = 0; ; from += PAGE_SIZE) {
+      const { data, error } = await supabase
+        .from('scores')
+        .select('*')
+        .in('dancer_id', dancerIds)
+        .order('id')
+        .range(from, from + PAGE_SIZE - 1);
+      if (error) { console.error('ResultsTable.scores', error); break; }
+      if (!data || data.length === 0) break;
+      allScores.push(...(data as Score[]));
+      if (data.length < PAGE_SIZE) break;
+    }
 
     if (selectedMaterial) {
       // Single material mode: derive dancers from groups with this material

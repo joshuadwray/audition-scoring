@@ -54,17 +54,25 @@ export async function GET(
     }
 
     const dancerIds = (dancers || []).map(d => d.id);
-    const { data: scores, error: scoreError } = await supabaseAdmin
-      .from('scores')
-      .select('*')
-      .in('dancer_id', dancerIds);
 
-    if (scoreError) {
-      console.error('results.export.scores', scoreError);
-      return NextResponse.json({ error: 'Failed to fetch results' }, { status: 500 });
+    // Paginated scores fetch — PostgREST caps each response at 1000 rows
+    const PAGE_SIZE = 1000;
+    const allScores: Score[] = [];
+    for (let from = 0; ; from += PAGE_SIZE) {
+      const { data, error: scoreError } = await supabaseAdmin
+        .from('scores')
+        .select('*')
+        .in('dancer_id', dancerIds)
+        .order('id')
+        .range(from, from + PAGE_SIZE - 1);
+      if (scoreError) {
+        console.error('results.export.scores', scoreError);
+        return NextResponse.json({ error: 'Failed to fetch results' }, { status: 500 });
+      }
+      if (!data || data.length === 0) break;
+      allScores.push(...(data as Score[]));
+      if (data.length < PAGE_SIZE) break;
     }
-
-    const allScores = (scores || []) as Score[];
 
     if (materialId) {
       const { data: groups } = await supabaseAdmin
