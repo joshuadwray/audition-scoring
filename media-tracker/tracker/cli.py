@@ -5,6 +5,7 @@
   python -m tracker add movie "title" [--year 2026] [--yes]
   python -m tracker probe [--source ID] [--query "..."]
   python -m tracker list
+  python -m tracker web [--port 8765] [--no-browser]
 """
 from __future__ import annotations
 
@@ -12,12 +13,12 @@ import argparse
 import sys
 from pathlib import Path
 
-from . import notify
 from .config import Config, load_config
-from .models import Observation
-from .report import build_report
+from .engine import run_check
 from .sources import build_sources
-from .state import State
+from .watchlist_io import append_entry
+
+DEFAULT_WEB_PORT = 8765
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -51,6 +52,11 @@ def main(argv: list[str] | None = None) -> int:
 
     sub.add_parser("list", help="show the parsed watchlist")
 
+    p_web = sub.add_parser("web", help="run the local web app")
+    p_web.add_argument("--port", type=int, default=DEFAULT_WEB_PORT)
+    p_web.add_argument("--no-browser", action="store_true",
+                       help="don't auto-open the browser")
+
     args = parser.parse_args(argv)
     config = load_config(args.watchlist)
 
@@ -62,58 +68,32 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_probe(config, args)
     if args.command == "list":
         return cmd_list(config)
+    if args.command == "web":
+        from .web import run_web
+        return run_web(config_path=args.watchlist, port=args.port,
+                       open_browser=not args.no_browser)
     return 2
 
 
-def _select_sources(config: Config, source_id: str | None):
-    sources = build_sources(config)
-    if source_id:
-        sources = [s for s in sources if s.source_id == source_id]
-        if not sources:
-            sys.exit(f"no enabled source with id '{source_id}'")
-    return sources
-
-
 def cmd_check(config: Config, args: argparse.Namespace) -> int:
-    sources = _select_sources(config, args.source)
-    state = State(config.state_path)
+    try:
+        run = run_check(config, source_id=args.source,
+                        dry_run=args.dry_run, no_notify=args.no_notify)
+    except ValueError as exc:
+        sys.exit(str(exc))
 
-    results = [s.run(config) for s in sources]
-    new: list[Observation] = []
-    for r in results:
-        for obs in r.observations:
-            if state.is_new(obs):
-                new.append(obs)
-                state.record(obs)
-    state.prune()
-
-    report = build_report(config, results, new, state)
+    print(run.report)
     if args.dry_run:
-        print(report)
         print("(dry run: state not saved, no files written, no push sent)")
         return 0
-
-    report_path = config.state_path.parent / "report.md"
-    report_path.parent.mkdir(parents=True, exist_ok=True)
-    report_path.write_text(report)
-    state.save()
-
-    print(report)
-    if new and not args.no_notify:
-        if notify.push_configured():
-            try:
-                notify.send_push(new)
-                print(f"pushed {len(new)} notification(s) via ntfy")
-            except Exception as exc:  # noqa: BLE001 — a failed push shouldn't fail the run
-                print(f"WARNING: ntfy push failed: {exc}", file=sys.stderr)
-        else:
-            print("NTFY_TOPIC not set — new sightings recorded but not pushed",
-                  file=sys.stderr)
-
+    if run.pushed:
+        print(f"pushed {len(run.new)} notification(s) via ntfy")
+    elif run.new and run.push_error:
+        print(f"WARNING: new sightings recorded but not pushed: {run.push_error}",
+              file=sys.stderr)
     # Partial source failures are normal (sites flake); only a run where
     # every source errored is a failed run.
-    failures = [r for r in results if r.error]
-    return 1 if failures and len(failures) == len(results) else 0
+    return 1 if run.all_failed else 0
 
 
 def cmd_add(config: Config, args: argparse.Namespace) -> int:
@@ -128,7 +108,7 @@ def cmd_add(config: Config, args: argparse.Namespace) -> int:
 
     watchlist_path = Path(args.watchlist) if args.watchlist else \
         Path(__file__).resolve().parent.parent / "watchlist.yaml"
-    _append_entry(watchlist_path, section, entry)
+    append_entry(watchlist_path, section, entry)
     print(f"added to {section}: {entry}")
     return 0
 
@@ -144,34 +124,15 @@ def _pick_book(config: Config, args: argparse.Namespace) -> dict:
     if not interactive:
         return as_typed
 
-    candidates: list[dict] = []
-    for source in build_sources(config):
-        search = getattr(source, "search_books", None)
-        if not search:
-            continue
-        print(f"searching {source.source_id} ...")
-        try:
-            candidates.extend(c for c in search(args.title) if c.get("title"))
-        except Exception as exc:  # noqa: BLE001
-            print(f"  ({source.source_id} search failed: {exc})")
-
+    candidates = search_book_candidates(config, args.title, log=print)
     if not candidates:
         print("no live catalog records found; adding as typed "
               "(fuzzy matching will apply)")
         return as_typed
 
-    seen: set[tuple] = set()
-    unique = []
-    for c in candidates:
-        key = (c.get("title"), c.get("author"), c.get("format"))
-        if key not in seen:
-            seen.add(key)
-            unique.append(c)
-    unique = unique[:10]
-
     print("\nPick the record you mean (canonical IDs make matching exact):")
     print("  0. none of these — add exactly as typed")
-    for i, c in enumerate(unique, 1):
+    for i, c in enumerate(candidates, 1):
         bits = [c.get("title") or "?"]
         if c.get("author"):
             bits.append(str(c["author"]))
@@ -182,55 +143,59 @@ def _pick_book(config: Config, args: argparse.Namespace) -> dict:
 
     while True:
         raw = input("choice: ").strip()
-        if raw.isdigit() and 0 <= int(raw) <= len(unique):
+        if raw.isdigit() and 0 <= int(raw) <= len(candidates):
             break
-        print(f"enter a number 0-{len(unique)}")
+        print(f"enter a number 0-{len(candidates)}")
     choice = int(raw)
     if choice == 0:
         return as_typed
+    return candidate_to_entry(candidates[choice - 1], isbn_override=args.isbn)
 
-    picked = unique[choice - 1]
+
+def search_book_candidates(config: Config, query: str, *, log=None,
+                           limit: int = 10) -> list[dict]:
+    """Live catalog candidates for a title, deduped. Shared by CLI + web."""
+    candidates: list[dict] = []
+    for source in build_sources(config):
+        search = getattr(source, "search_books", None)
+        if not search:
+            continue
+        if log:
+            log(f"searching {source.source_id} ...")
+        try:
+            candidates.extend(c for c in search(query) if c.get("title"))
+        except Exception as exc:  # noqa: BLE001
+            if log:
+                log(f"  ({source.source_id} search failed: {exc})")
+
+    seen: set[tuple] = set()
+    unique = []
+    for c in candidates:
+        key = (c.get("title"), c.get("author"), c.get("format"))
+        if key not in seen:
+            seen.add(key)
+            unique.append(c)
+    return unique[:limit]
+
+
+def candidate_to_entry(picked: dict, isbn_override: str | None = None) -> dict:
     entry = {"title": picked["title"]}
     if picked.get("author"):
         entry["author"] = picked["author"]
-    if args.isbn or picked.get("isbn"):
-        entry["isbn"] = args.isbn or picked["isbn"]
+    if isbn_override or picked.get("isbn"):
+        entry["isbn"] = isbn_override or picked["isbn"]
     if picked.get("bib_id"):
         entry["bib_id"] = picked["bib_id"]
     return entry
 
 
-def _append_entry(path: Path, section: str, entry: dict) -> None:
-    """Insert an entry under `books:`/`movies:` without disturbing the rest
-    of a hand-commented YAML file. Falls back to printing the snippet."""
-    snippet = [f"  - title: {_yaml_str(entry['title'])}"]
-    for k, v in entry.items():
-        if k != "title":
-            snippet.append(f"    {k}: {_yaml_str(v)}")
-
-    lines = path.read_text().splitlines()
-    for i, line in enumerate(lines):
-        if line.strip() == f"{section}:" or line.strip() == f"{section}: []":
-            lines[i] = f"{section}:"
-            lines[i + 1:i + 1] = snippet
-            path.write_text("\n".join(lines) + "\n")
-            return
-    print(f"couldn't find a '{section}:' section in {path}; add manually:")
-    print(f"{section}:")
-    print("\n".join(snippet))
-
-
-def _yaml_str(v: object) -> str:
-    if isinstance(v, int):
-        return str(v)
-    s = str(v)
-    if any(ch in s for ch in ":#'\"{}[]") or s != s.strip():
-        return '"' + s.replace('"', '\\"') + '"'
-    return s
-
-
 def cmd_probe(config: Config, args: argparse.Namespace) -> int:
-    for source in _select_sources(config, args.source):
+    sources = build_sources(config)
+    if args.source:
+        sources = [s for s in sources if s.source_id == args.source]
+        if not sources:
+            sys.exit(f"no enabled source with id '{args.source}'")
+    for source in sources:
         print(f"\n===== {source.source_id} ({source.kind}) =====")
         try:
             print(source.probe(config, args.query))

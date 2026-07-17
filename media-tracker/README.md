@@ -41,6 +41,33 @@ set -a; source .env; set +a
 
 ## Use
 
+### The web app (easiest)
+
+```bash
+python -m tracker web
+```
+
+Opens a dashboard in your browser: add titles (books are verified
+against the live catalogs — you click the exact record you mean),
+remove titles, run a check, browse sightings, and test each source with
+one click (the "test" button shows exactly what the source returned —
+paste that output into a Claude session to get scrapers fixed).
+
+Phones on your home wifi can use it too: find your computer's IP
+(System Settings → Wi-Fi → Details on a Mac) and open
+`http://<that-ip>:8765`.
+
+### The phone dashboard (read-only, from anywhere)
+
+Every check run writes `docs/index.html` — a clean, phone-friendly
+summary of new/current sightings, source health, and your watchlist.
+Once this project moves to its own repo, enable **GitHub Pages**
+(Settings → Pages → "Deploy from a branch" → `/docs` folder) and that
+page gets a public URL that auto-updates after every scheduled run —
+bookmark it on your phone. Until then, the same file opens locally.
+
+### The CLI
+
 ```bash
 python -m tracker list                      # show parsed watchlist + sources
 python -m tracker add book "nickel boys"    # guardrailed add: searches the live
@@ -72,6 +99,26 @@ work; `cloudlibrary` may need its endpoint chain re-pointed (the adapter
 is built so that's a one-line fix — send me the probe output);
 `cinemark`/`amc` will tell you whether structured data or only the text
 fallback is available, and whether your theater URLs are right.
+
+## If the Cinemark/AMC probes fail
+
+Those two are the most load-bearing sources and the most likely to
+block scrapers. The agreed escalation ladder, cheapest first — decide
+after seeing real probe output, not before:
+
+1. **Probe from home wifi** and codify whichever direct endpoint works
+   (bot walls usually target datacenter IPs, not homes).
+2. **Headless-browser fallback** — an invisible Chrome loads the page
+   like a human. Free; costs ~250MB of disk and occasional 15-minute
+   fixes when the chains change defenses.
+3. **Aggregator adapter (SerpAPI)** — one paid-service integration
+   (free tier likely covers 2 checks/day) returning Google's showtime
+   data for *every* nearby theater. Most durable option.
+4. **AMC's official API** — free developer key, but approval is slow
+   and not guaranteed. Worth submitting in parallel if 1–2 struggle.
+5. **Run just the blocked sources from a home machine** on cron:
+   `python -m tracker check --source cinemark` — a deployment fix,
+   not a code fix.
 
 ## Scheduling
 

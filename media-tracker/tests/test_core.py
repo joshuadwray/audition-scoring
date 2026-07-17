@@ -87,11 +87,11 @@ def test_config_parses_sample_watchlist(tmp_path):
 
 
 def test_cli_add_appends_yaml(tmp_path):
-    from tracker.cli import _append_entry
+    from tracker.watchlist_io import append_entry
     wl = tmp_path / "watchlist.yaml"
     wl.write_text("# header\nbooks:\n\nmovies:\n  - title: Old\nsources: {}\n")
-    _append_entry(wl, "books", {"title": "New: Book", "isbn": "123"})
-    _append_entry(wl, "movies", {"title": "New Movie", "year": 2026})
+    append_entry(wl, "books", {"title": "New: Book", "isbn": "123"})
+    append_entry(wl, "movies", {"title": "New Movie", "year": 2026})
     text = wl.read_text()
     assert '  - title: "New: Book"\n    isbn: 123\n' in text
     assert "  - title: New Movie\n    year: 2026\n" in text
