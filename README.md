@@ -34,6 +34,8 @@ npm install
 #   NEXT_PUBLIC_SUPABASE_ANON_KEY
 #   SUPABASE_SERVICE_ROLE_KEY
 #   JWT_SECRET
+#   PIN_ENCRYPTION_KEY
+#   CRON_SECRET          (required in production; see .env.local.example)
 
 # Run dev server
 rm -rf .next && npm run dev
@@ -139,9 +141,9 @@ Admin can click "Join as Judge" to participate in scoring. This creates a real j
 
 ## Database
 
-8 tables in Supabase PostgreSQL: `sessions`, `materials`, `dancers`, `judges`, `dancer_groups`, `scores`, `score_submissions`, `admin_actions`.
+12 tables in Supabase PostgreSQL: `sessions`, `materials`, `dancers`, `judges`, `dancer_groups`, `scores`, `score_submissions`, `admin_actions`, `session_secrets`, `judge_secrets`, `login_attempts`, `keepalive`.
 
-Migrations are in `supabase/migrations/` and should be applied in order (001 through 007). The schema has evolved through:
+Migrations are in `supabase/migrations/` and should be applied in order (001 through 013). The schema has evolved through:
 1. Initial schema with full RLS
 2. Session codes + admin-as-judge support
 3. Rename teams -> materials
@@ -149,12 +151,19 @@ Migrations are in `supabase/migrations/` and should be applied in order (001 thr
 5. Materials-to-groups model + dancer grade field
 6. Group archiving (soft delete)
 7. Group retraction (unpush)
+8. PIN hashing (bcrypt) moved into secrets tables
+9. Login attempt tracking for rate limiting
+10. Four scoring categories (replaces the original five)
+11. Encrypted PIN storage for admin PIN reveal
+12. Skip dancer (`is_skipped` + nullable categories)
+13. Keepalive table + `keepalive_ping()` for Supabase pause prevention
 
 ## Deployment
 
 - **GitHub**: Private repo, pushes via SSH
 - **Vercel**: Auto-deploys from `main` branch
 - Environment variables are configured in the Vercel dashboard
+- **Supabase pause prevention**: the free tier pauses after 7 days of inactivity. Two independent daily schedulers ping `/api/keepalive` — Vercel Cron (`vercel.json`, 12:00 UTC) and GitHub Actions (`.github/workflows/keepalive.yml`, 00:00 UTC) — each writing to the `keepalive` table. To verify, check that both rows' `ping_count` is climbing in the Supabase Table Editor. Requires `CRON_SECRET` in both Vercel env vars and GitHub repository secrets. See `CLAUDE.md` for details.
 
 ```bash
 # Deploy

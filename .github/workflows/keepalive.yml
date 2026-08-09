@@ -1,0 +1,57 @@
+# Second, independent scheduler for the Supabase keepalive.
+#
+# Vercel Cron (see vercel.json) is the primary. Hobby-plan crons are best-effort with
+# no SLA and no historical logs, so this runs the same ping from GitHub's scheduler
+# 12 hours out of phase. Both write to the `keepalive` table with a distinct `source`,
+# so the table shows at a glance which scheduler is healthy.
+#
+# This job is also the alerting the keepalive never had: it asserts "ok":true and fails
+# otherwise, and GitHub emails you on workflow failure by default.
+#
+# Setup: add CRON_SECRET as a repository secret (Settings -> Secrets and variables ->
+# Actions), using the same value already set in the Vercel project.
+#
+# Note: GitHub disables scheduled workflows after 60 days of repository inactivity
+# (it emails a warning first). Any push to the repo resets that clock.
+
+name: supabase-keepalive
+
+on:
+  schedule:
+    # 00:00 UTC daily — staggered 12h from the Vercel cron's 12:00 UTC.
+    # GitHub cron is best-effort and can drift by a while under load.
+    - cron: "0 0 * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: supabase-keepalive
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping keepalive endpoint
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          KEEPALIVE_URL: https://auditionscoring.vercel.app/api/keepalive?source=github
+        run: |
+          set -euo pipefail
+
+          if [ -z "${CRON_SECRET:-}" ]; then
+            echo "::error::CRON_SECRET repository secret is not set."
+            exit 1
+          fi
+
+          # --fail-with-body so a 4xx/5xx both fails the step AND prints why.
+          body=$(curl -sS --fail-with-body --retry 3 --retry-delay 30 --max-time 30 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$KEEPALIVE_URL")
+
+          echo "$body"
+
+          # A 200 alone isn't proof the database write landed; check the payload.
+          echo "$body" | grep -q '"ok":true' || {
+            echo "::error::Keepalive responded without \"ok\":true"
+            exit 1
+          }
