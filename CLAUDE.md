@@ -1,11 +1,12 @@
 # Dance Audition Scoring App - Claude Context
 
-## Project Status: FULLY BUILT, IN TESTING
+## Project Status: FULLY BUILT, DEPLOYED, IN TESTING
+Live at https://auditionscoring.vercel.app (auto-deploys from `main`).
 All 7 implementation phases complete + 4 admin portal updates + materials-to-groups migration + QoL updates (group archive, monitor dancer names, tile name/running total) + Group A polish (retract/unpush, ad-hoc auto-push) + Group B polish (clearer group names, material label colors) + #8 keyboard navigation. Build passes cleanly. Supabase connected and verified.
 End-to-end smoke test passed (session creation, PIN auth, session deletion).
 
 ## Tech Stack
-- **Next.js 15.5.7** (App Router, TypeScript, Tailwind CSS) - downgraded from 15.5.11 to match @next/swc (15.5.8+ has no swc package published)
+- **Next.js 15.5.15** (App Router, TypeScript, Tailwind CSS) - `package.json` declares `^15.5.7`; the lockfile resolves to 15.5.15 and `@next/swc-darwin-arm64` 15.5.15 exists, so the old "downgrade to 15.5.7 because 15.5.8+ has no swc package" workaround no longer applies
 - **React 19** (came with Next.js 15 upgrade)
 - **Supabase** (PostgreSQL, Realtime, RLS) - project: ordsabaankrmhppsvsqp
 - **Vercel** (deployment target)
@@ -188,8 +189,7 @@ vercel.json                            # Vercel Cron schedule for /api/keepalive
 - Route handler params are async: `{ params }: { params: Promise<{ id: string }> }` then `const { id } = await params;`
 - Supabase clients use lazy proxy pattern to avoid build-time env var errors
 - React 19 is used (came with Next.js 15 upgrade)
-- eslint-config-next pinned to 15.5.7 to match
-- @next/swc-darwin-arm64 must match next version exactly; swc packages only published up to 15.5.7
+- @next/swc-darwin-arm64 must match the next version exactly (currently both 15.5.15 via the lockfile). The old ceiling of 15.5.7 no longer holds — swc packages are published for current releases
 - `next.config.mjs` sets `outputFileTracingRoot: __dirname` to fix dual-lockfile issue (parent `~/package-lock.json` exists); without this, `.next/server/` fails to build
 
 ## Scoring Logic (Results Tab + Export)
@@ -285,7 +285,7 @@ Source attribution: an explicit `?source=` wins (GitHub Actions sets it); otherw
 - No loading skeleton states
 - Admin can't click-to-edit scores in the results table (API supports it, UI is read-only)
 - Group builder uses checkboxes, not drag-and-drop
-- @next/swc version mismatch will corrupt `.next` at runtime — versions MUST match (fixed: both at 15.5.7)
+- @next/swc version mismatch will corrupt `.next` at runtime — versions MUST match (currently both 15.5.15). Install from the lockfile (`npm ci` / plain `npm install`) rather than bumping `next` alone
 
 ## Open Polish Items
 1. **Restrict "New Session" page access** — Currently `/admin/new` is open; should require admin auth or similar gate
@@ -294,17 +294,17 @@ Source attribution: an explicit `?source=` wins (GitHub Actions sets it); otherw
 4. ~~**Material-specific label colors**~~ — **DONE**: 8-color palette in `lib/material-colors.ts` (blue, purple, green, orange, pink, teal, indigo, yellow). Applied at: Setup material pills, ProgressMonitor instance labels, DancerTile (`materialColorClasses` prop), MyScoresView badges + tiles, ResultsTable sub-row labels. Same material = same color everywhere.
 5. **"Join as Judge" button not showing immediately** — Bug: the opt-in button doesn't appear right away when configuring a new session; may require a state refresh or navigation
 6. ~~**Ad-hoc group auto-push**~~ — **DONE**: AdHocGroupCreator creates template + immediately pushes with selected material. Button reads "Create & Push Group N".
-7. **Judge realtime push (untested)** — Realtime subscriptions exist (`subscribeToGroupChanges`) so pushes should appear without page refresh. Not yet tested — app has only run on local dev so far.
+7. **Judge realtime push (untested)** — Realtime subscriptions exist (`subscribeToGroupChanges`) so pushes should appear without page refresh. Still unverified, but no longer blocked: the app is deployed, so multi-device testing is now possible.
 8. ~~**Keyboard navigation**~~ — **DONE**: Enter/Return submits forms (landing, new session, manual dancer add). Judge scoring supports arrow key tile/category navigation + number key scoring with auto-advance. Focus state shown via blue ring on tile + blue highlight on category. Works on both judge page and admin Judge tab.
-9. **Deploy to Vercel** — First online deployment. #7 (judge realtime push testing) is contingent on this since realtime requires multi-device access.
+9. ~~**Deploy to Vercel**~~ — **DONE**: live at https://auditionscoring.vercel.app, auto-deploying from `main`. Supabase pause prevention is in place (see "Supabase Pause Prevention"). #7 is now unblocked.
 
 ### Suggested Work Order
 - ~~**Group A (#2 + #6)**~~: **DONE** — Push lifecycle (unpush + ad-hoc auto-push) implemented. Test #7 (realtime) as follow-up.
 - ~~**Group B (#3 + #4)**~~: **DONE** — Clearer group names + material-specific label colors. New utility: `lib/material-colors.ts`.
 - **Group C (#1 + #5)**: Admin setup flow — restrict new session page + fix Join as Judge button timing. Shared code: admin routing, auth, dashboard initial state.
-- **#7**: Test realtime push delivery to judges (after Group A lands). Contingent on #9 (deploy).
+- **#7**: Test realtime push delivery to judges. Unblocked now that #9 is done — needs two devices against the live deployment.
 - ~~**#8**~~: **DONE** — Keyboard navigation (Enter-to-submit + arrow/number key scoring).
-- **#9**: Deploy to Vercel (enables multi-device testing for #7).
+- ~~**#9**~~: **DONE** — Deployed to Vercel; multi-device testing for #7 is now possible.
 
 ## Post-Change Requirement
 After making code changes, **always delete the `.next` cache** before the user tests:
