@@ -25,8 +25,8 @@ End-to-end smoke test passed (session creation, PIN auth, session deletion).
 - **Admin judging**: Admin can opt-in as a judge via "Join as Judge" button. Creates a real judge record with `is_admin_judge=true`. `requireJudge` auth accepts admin tokens with `judgeId`.
 - **Group template/instance model**: Groups are created as reusable templates (no material). When pushed, a new instance row is created with the selected material. Same template can be pushed multiple times with different materials.
 
-## Database Tables (8 total)
-sessions, materials, dancers, judges, dancer_groups, scores, score_submissions, admin_actions
+## Database Tables (12 total)
+sessions, materials, dancers, judges, dancer_groups, scores, score_submissions, admin_actions, session_secrets, judge_secrets, login_attempts, keepalive
 
 ## Database Columns Added (migration 002)
 - `sessions.session_code` — TEXT UNIQUE, human-readable login code (stored uppercase)
@@ -81,6 +81,13 @@ sessions, materials, dancers, judges, dancer_groups, scores, score_submissions, 
 - Submit endpoint accepts `is_skipped: true` per dancer; PATCH accepts skip toggle (un-skipping requires all categories in same request)
 - **Migration file:** `supabase/migrations/012_skip_dancer.sql` (must be applied to Supabase)
 
+## Database Keepalive (migration 013)
+- `keepalive` table — `source` TEXT PK (`vercel` | `github` | `manual`), `last_ping_at` TIMESTAMPTZ, `ping_count` BIGINT. One row per scheduler.
+- `keepalive_ping(p_source TEXT)` SQL function — upsert + atomic increment in one round trip, returns the row
+- RLS: service_role only (same pattern as `login_attempts`)
+- Exists so the pause-prevention ping is a **write** (unambiguous DB activity) and leaves a **durable, free-to-inspect trail** — Vercel Hobby keeps no historical logs, so this table is the only way to verify the keepalive is running
+- **Migration file:** `supabase/migrations/013_keepalive.sql` (must be applied to Supabase)
+
 ## Group Template/Instance Model
 - **Template** (`material_id = NULL`): Created in Setup tab, reusable. Contains group_number and dancer_ids.
 - **Instance** (`material_id` set): Created at push time by cloning template. Linked to scores.
@@ -125,6 +132,7 @@ app/
     scores/submit/route.ts             # POST (batch submit)
     scores/[id]/route.ts              # GET, PATCH (edit)
     results/[sessionId]/export/route.ts # GET (CSV or JSON)
+    keepalive/route.ts                  # GET (Supabase pause-prevention ping; CRON_SECRET-gated; writes keepalive table)
 components/
   admin/
     DancerImport.tsx                    # CSV upload + preview (format: Dancer #, Name, Grade)
@@ -170,6 +178,10 @@ supabase/
   migrations/010_four_categories.sql                 # Drop 5 old categories, add 4 new ones (truncates scores)
   migrations/011_judge_pin_encrypted.sql              # Add judge_pin_encrypted column (AES-GCM ciphertext) for admin PIN reveal
   migrations/012_skip_dancer.sql                       # Add is_skipped + make categories nullable; XOR CHECK constraint
+  migrations/013_keepalive.sql                          # keepalive table + keepalive_ping() RPC for pause prevention
+.github/
+  workflows/keepalive.yml              # Second, independent daily keepalive ping (backs up Vercel Cron)
+vercel.json                            # Vercel Cron schedule for /api/keepalive
 ```
 
 ## Next.js 15 Notes
@@ -238,8 +250,33 @@ supabase/
 - SUPABASE_SERVICE_ROLE_KEY
 - JWT_SECRET (random 32-byte hex)
 - PIN_ENCRYPTION_KEY (random 32-byte hex, 64 chars) — AES-256-GCM key for encrypting judge PINs at rest; required for admin PIN reveal/reset endpoints. Generate with: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`. Must also be set on Vercel for production reveals to work.
+- CRON_SECRET (random 32-byte hex) — shared secret for `/api/keepalive`. **Required in production**: the route fails closed (500) without it, rather than silently becoming a public service-role endpoint. Must be set in **two** places with the same value: Vercel env vars, and as a GitHub repository secret (Settings → Secrets and variables → Actions) for the backup workflow.
 
 **Important**: `NEXT_PUBLIC_*` vars are inlined into the client JS bundle at build time. After changing them on Vercel, you must **redeploy** (not just restart). The runtime fallback in `layout.tsx` provides a safety net but the correct keys must still be set.
+
+## Supabase Pause Prevention
+Supabase pauses free-tier projects after **7 days of inactivity**. This app is used seasonally, so the off-season is one long inactivity window. It paused once in Aug 2026 despite an earlier keepalive, because that keepalive pinged only every 3 days (two missed runs = 9 days), read instead of wrote, and left no record — Vercel Hobby keeps no historical logs, so there was no way to tell it had stopped.
+
+**Current setup — two independent daily schedulers:**
+| Scheduler | Config | Time | `source` |
+|---|---|---|---|
+| Vercel Cron (primary) | `vercel.json` | 12:00 UTC | `vercel` |
+| GitHub Actions (backup) | `.github/workflows/keepalive.yml` | 00:00 UTC | `github` |
+
+Both call `GET /api/keepalive` with `Authorization: Bearer $CRON_SECRET`. The route calls `keepalive_ping()`, which **writes** to the `keepalive` table. Daily × 2 sources means six consecutive failures of *both* are needed before a pause.
+
+Source attribution: an explicit `?source=` wins (GitHub Actions sets it); otherwise a `vercel-cron` user-agent is recorded as `vercel`; anything else is `manual`. `vercel.json`'s cron `path` deliberately carries **no query string** — Vercel validates that field and a rejected value would fail the deploy.
+
+**How to verify it's working:** open the `keepalive` table in the Supabase Table Editor. Both rows should show a `last_ping_at` within the last day and a steadily climbing `ping_count`. A row that has stopped incrementing names the broken scheduler.
+
+**Alerting:** the GitHub Actions job asserts `"ok":true` in the response body (a 200 alone isn't proof the DB write landed) and fails otherwise; GitHub emails on workflow failure by default. This is the only failure alerting — Vercel Cron failures are still silent.
+
+**Gotchas:**
+- GitHub disables scheduled workflows after 60 days of **repo inactivity** (warning email first). Any push resets the clock.
+- Both pings route through the Vercel deployment, so a broken deploy stops both — but the GH Actions job will fail loudly.
+- Vercel Hobby allows 2 crons/project, once per day max. Daily is already the ceiling.
+- If Supabase does pause, the keepalive can't un-pause it — restore manually from the Supabase dashboard.
+- Long-term fix if downtime ever becomes costly: Supabase Pro (~$25/mo) never auto-pauses.
 
 ## Known Limitations / Future Polish
 - No offline detection banner (drafts save to localStorage but no explicit "offline" UI)
